@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query, type Query } from "@anthropic-ai/claude-agent-sdk";
-import { hasClaudeAuth, paths, repoRoot } from "./config.js";
+import { anthropicModel, hasClaudeAuth, normalizeEffort, paths, repoRoot } from "./config.js";
 import * as db from "./db.js";
 import { broadcast } from "./events.js";
 import { normOutput, readMeta } from "./meta.js";
@@ -320,9 +320,11 @@ export async function runAgent(
     systemPrompt: { type: "preset", preset: "claude_code" },
   };
   if (sdkSessionId) options.resume = sdkSessionId;
-  // Model/effort người dùng đã chọn cho phiên (docs/API.md mục AI Providers) - chỉ set khi có
-  if (session?.model) options.model = session.model;
-  if (session?.effort) options.effort = session.effort;
+  // Model/effort người dùng đã chọn cho phiên - fallback anthropicModel() khi dùng proxy
+  const selectedModel = session?.model || anthropicModel();
+  if (selectedModel) options.model = selectedModel;
+  const eff = normalizeEffort(session?.effort);
+  if (eff) options.effort = eff;
 
   let q: Query;
   try {
@@ -422,6 +424,10 @@ export async function runAgent(
     }
   } catch (err) {
     hadError = true;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("context length") || errMsg.includes("longer than the model") || errMsg.includes("tokens")) {
+      db.setSdkSessionId(sessionId, null);
+    }
     // Lỗi giữa chừng: giữ lại phần text đã stream để không mất lịch sử
     if (textBuffer && !resultSaved) {
       db.addChatMessage(sessionId, "assistant", "text", textBuffer);
@@ -429,7 +435,9 @@ export async function runAgent(
     emit({
       sessionId,
       kind: "error",
-      error: err instanceof Error ? err.message : String(err),
+      error: errMsg.includes("longer than the model's context length")
+        ? "Lịch sử trò chuyện quá dài (>1 triệu tokens). Đã tự động dọn dẹp bộ nhớ cũ của phiên này, vui lòng gửi lại yêu cầu."
+        : errMsg,
     });
   } finally {
     running.delete(sessionId);

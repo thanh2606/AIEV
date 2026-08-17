@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Router } from "express";
-import { hasClaudeAuth, upsertEnvVar } from "../config.js";
+import { anthropicBaseUrl, hasClaudeAuth, upsertEnvVar } from "../config.js";
 import { HttpError } from "../util.js";
 
 /**
@@ -16,7 +16,7 @@ interface ConnectionInfo {
   roles: string[];
   connected: boolean;
   /** Nguồn kết nối đang hiệu lực */
-  source: "oauth" | "api-key" | null;
+  source: "oauth" | "api-key" | "proxy" | null;
   note: string | null;
   key: { envVar: string; present: boolean; masked: string | null };
   /** Hướng dẫn lấy key */
@@ -51,10 +51,27 @@ function antigravityDetected(): boolean {
 
 function listConnections(): ConnectionInfo[] {
   const anthropicKey = process.env.ANTHROPIC_API_KEY || "";
+  const proxyUrl = anthropicBaseUrl();
   const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "";
   const openaiKey = process.env.OPENAI_API_KEY || "";
   const sonioxKey = process.env.SONIOX_API_KEY || "";
   const oauth = claudeOauthPresent();
+
+  // Nguồn kết nối Claude: proxy thắng oauth thắng api-key
+  const claudeSource: ConnectionInfo["source"] = proxyUrl
+    ? "proxy"
+    : oauth
+      ? "oauth"
+      : anthropicKey
+        ? "api-key"
+        : null;
+  const claudeNote = proxyUrl
+    ? `Đang kết nối qua proxy/router: ${proxyUrl}${anthropicKey ? " (có API key)" : " (không cần API key)"}`
+    : oauth
+      ? "Đang dùng subscription OAuth của Claude Code (đăng nhập qua VSCode/terminal) - không tốn phí API."
+      : anthropicKey
+        ? "Đang dùng API key (tính phí theo usage)."
+        : "Chưa kết nối - đăng nhập Claude Code trên máy này hoặc nhập API key.";
 
   return [
     {
@@ -62,12 +79,8 @@ function listConnections(): ConnectionInfo[] {
       label: "Claude (Anthropic)",
       roles: ["edit", "chat"],
       connected: hasClaudeAuth(),
-      source: oauth ? "oauth" : anthropicKey ? "api-key" : null,
-      note: oauth
-        ? "Đang dùng subscription OAuth của Claude Code (đăng nhập qua VSCode/terminal) - không tốn phí API."
-        : anthropicKey
-          ? "Đang dùng API key (tính phí theo usage)."
-          : "Chưa kết nối - đăng nhập Claude Code trên máy này hoặc nhập API key.",
+      source: claudeSource,
+      note: claudeNote,
       key: {
         envVar: "ANTHROPIC_API_KEY",
         present: !!anthropicKey,
@@ -226,15 +239,28 @@ router.post("/:provider/test", async (req, res) => {
   }
 
   if (provider === "claude") {
-    const key = process.env.ANTHROPIC_API_KEY;
-    if (key) {
-      const r = await fetch("https://api.anthropic.com/v1/models?limit=1", {
-        headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
-      });
-      if (r.ok) {
-        res.json({ ok: true, message: "API key Anthropic hoạt động." });
-      } else {
-        res.json({ ok: false, message: `API key không hợp lệ (HTTP ${r.status}).` });
+    const key = process.env.ANTHROPIC_API_KEY || "";
+    const proxyUrl = anthropicBaseUrl();
+    if (key || proxyUrl) {
+      // Gọi thử endpoint Models API qua proxy (nếu có) hoặc trực tiếp Anthropic
+      const baseUrl = (proxyUrl || "https://api.anthropic.com").replace(/\/+$/, "");
+      const headers: Record<string, string> = { "anthropic-version": "2023-06-01" };
+      if (key) headers["x-api-key"] = key;
+      try {
+        const r = await fetch(`${baseUrl}/v1/models?limit=1`, { headers });
+        if (r.ok) {
+          const msg = proxyUrl
+            ? `Proxy/router hoạt động: ${proxyUrl}${key ? " (API key hợp lệ)" : ""}`
+            : "API key Anthropic hoạt động.";
+          res.json({ ok: true, message: msg });
+        } else {
+          res.json({ ok: false, message: `${proxyUrl ? "Proxy" : "API key"} trả lỗi (HTTP ${r.status}).` });
+        }
+      } catch (err) {
+        res.json({
+          ok: false,
+          message: `Không kết nối được tới ${baseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
       return;
     }

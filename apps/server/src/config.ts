@@ -30,6 +30,11 @@ export const repoRoot = findRepoRoot();
 // Nạp .env từ repo root (ANTHROPIC_API_KEY, SERVER_PORT, ...)
 dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
 
+// Đặt giới hạn token tối đa cho Claude Code CLI để tự động compact lịch sử trước khi chạm mốc 1M tokens
+if (!process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS) {
+  process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = "200000";
+}
+
 export const SERVER_PORT = Number(process.env.SERVER_PORT || 6869);
 
 const ENV_FILE = path.join(repoRoot, ".env");
@@ -94,14 +99,17 @@ export function apiToken(): string {
 
 /**
  * Có xác thực Claude cho Agent SDK không - theo thứ tự SDK tự nhận:
- * env key (API key / OAuth token / gateway token) hoặc đăng nhập subscription
+ * env key (API key / OAuth token / gateway token), custom proxy/router
+ * (ANTHROPIC_BASE_URL / CLAUDE_BASE_URL), hoặc đăng nhập subscription
  * của Claude Code trên máy (~/.claude/.credentials.json, hoặc CLAUDE_CONFIG_DIR).
  */
 export function hasClaudeAuth(): boolean {
   if (
     process.env.ANTHROPIC_API_KEY ||
     process.env.CLAUDE_CODE_OAUTH_TOKEN ||
-    process.env.ANTHROPIC_AUTH_TOKEN
+    process.env.ANTHROPIC_AUTH_TOKEN ||
+    process.env.ANTHROPIC_BASE_URL ||
+    process.env.CLAUDE_BASE_URL
   ) {
     return true;
   }
@@ -111,6 +119,39 @@ export function hasClaudeAuth(): boolean {
   if (fs.existsSync(path.join(configDir, ".credentials.json"))) return true;
   // macOS: Claude Code lưu OAuth trong Keychain, KHÔNG có .credentials.json
   return darwinKeychainHasClaudeCreds();
+}
+
+/**
+ * Base URL của proxy/router Anthropic (OmniRoute, 9router, ...) nếu đang cấu hình.
+ * null = dùng endpoint gốc api.anthropic.com.
+ */
+export function anthropicBaseUrl(): string | null {
+  return process.env.ANTHROPIC_BASE_URL || process.env.CLAUDE_BASE_URL || null;
+}
+
+/**
+ * Model Claude mặc định (nếu có cấu hình trong .env: ANTHROPIC_MODEL hoặc CLAUDE_MODEL).
+ * Khi dùng proxy (OmniRoute), nếu không chọn model riêng thì mặc định là 'tokenrouter/qwen/qwen3.8-max-free'.
+ */
+export function anthropicModel(): string | null {
+  const envModel = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL;
+  if (envModel) return envModel.trim();
+  if (anthropicBaseUrl()) return "oc/deepseek-v4-flash-free";
+  return null;
+}
+
+/**
+ * Chuẩn hóa giá trị effort cho Claude Agent SDK.
+ * Đổi 'high' thành 'medium' và 'max' thành 'xhigh' vì các router/proxy (OmniRoute, TokenRouter...)
+ * và mô hình Qwen/DeepSeek chỉ chấp nhận: 'low', 'medium', 'xhigh'.
+ */
+export function normalizeEffort(effort?: string | null): "low" | "medium" | "xhigh" | undefined {
+  if (!effort) return undefined;
+  const e = effort.toLowerCase().trim();
+  if (e === "low") return "low";
+  if (e === "medium" || e === "high") return "medium";
+  if (e === "xhigh" || e === "max") return "xhigh";
+  return "medium";
 }
 
 // Cache kết quả tra Keychain 60s - health poll mỗi 30s, không spawn security liên tục

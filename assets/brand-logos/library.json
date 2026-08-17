@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-03T05:51:28.822Z",
+  "generatedAt": "2026-08-17T04:34:40.312Z",
   "source": "https://simple-icons.org",
   "license": "CC0-1.0 (áp cho file SVG, KHÔNG áp cho quyền nhãn hiệu của brand)",
   "notice": "Logo là nhãn hiệu của chủ sở hữu. Dùng để nhắc tới/minh họa thì được; không được dùng theo cách ngụ ý brand đó tài trợ hay chứng thực nội dung. Glyph một màu - cần bản đủ màu thì tải từ trang brand chính chủ và bỏ vào thư mục này.",
-  "count": 121,
+  "count": 122,
   "icons": [
     {
       "slug": "alibabadotcom",
@@ -814,6 +814,14 @@
       "color": "#25D366",
       "file": "whatsapp.svg",
       "source": "https://about.meta.com/brand/resources/whatsapp/whatsapp-brand"
+    },
+    {
+      "slug": "wikipedia",
+      "title": "Wikipedia",
+      "color": "#000000",
+      "file": "wikipedia.svg",
+      "source": "https://simple-icons.org",
+      "license": "CC0-1.0 (file SVG; KHÔNG áp cho quyền nhãn hiệu)"
     },
     {
       "slug": "wordpress",

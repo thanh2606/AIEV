@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { hasClaudeAuth, repoRoot } from "./config.js";
+import { anthropicModel, hasClaudeAuth, normalizeEffort, repoRoot } from "./config.js";
 import { addTokenUsage } from "./db.js";
 import { HttpError } from "./util.js";
 
@@ -47,7 +47,8 @@ export async function generateText(input: {
     settingSources: [],
     permissionMode: "default",
   };
-  if (input.model) options.model = input.model;
+  const selectedModel = input.model || anthropicModel();
+  if (selectedModel) options.model = selectedModel;
 
   let text = "";
   let inputTokens = 0;

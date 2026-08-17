@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Router } from "express";
-import { hasClaudeAuth } from "../config.js";
+import { anthropicBaseUrl, hasClaudeAuth } from "../config.js";
 import { geminiApiKey } from "../gemini.js";
 import { HttpError } from "../util.js";
 
@@ -16,6 +16,13 @@ import { HttpError } from "../util.js";
  * fetch lỗi. Các model 3.7/3.5 đã retired (404) nên không liệt kê.
  */
 export const CLAUDE_MODELS = [
+  { id: "oc/deepseek-v4-flash-free", label: "DeepSeek V4 Flash (OmniRoute - Siêu nhanh, Khuyên dùng)" },
+  { id: "oc/hy3-free", label: "Hunyuan 3 Free (OmniRoute)" },
+  { id: "oc/mimo-v2.5-free", label: "Mimo V2.5 Free (OmniRoute)" },
+  { id: "oc/nemotron-3-ultra-free", label: "Nemotron 3 Ultra Free (OmniRoute)" },
+  { id: "oc/big-pickle", label: "Big Pickle Free (OmniRoute)" },
+  { id: "tokenrouter/qwen/qwen3.8-max-free", label: "Qwen 3.8 Max (TokenRouter / OmniRoute)" },
+  { id: "oc/big-pickle", label: "Big Pickle Free (OmniRoute)" },
   { id: "claude-fable-5", label: "Fable 5 (mạnh nhất)" },
   { id: "claude-opus-5", label: "Opus 5" },
   { id: "claude-sonnet-5", label: "Sonnet 5 (cân bằng)" },
@@ -110,22 +117,25 @@ async function fetchLiveClaudeModels(): Promise<{
   source: "anthropic" | "static";
   models: Array<{ id: string; label: string }>;
 }> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return { source: "static", models: CLAUDE_MODELS };
+  const key = process.env.ANTHROPIC_API_KEY || "";
+  const proxyUrl = anthropicBaseUrl();
+  // Cần key hoặc proxy để gọi Models API - OAuth subscription không gọi được
+  if (!key && !proxyUrl) return { source: "static", models: CLAUDE_MODELS };
   if (liveClaudeModelsCache && Date.now() - liveClaudeModelsCache.at < CLAUDE_MODELS_CACHE_MS) {
     return { source: "anthropic", models: liveClaudeModelsCache.list };
   }
   try {
     const list: Array<{ id: string; label: string }> = [];
+    const baseUrl = (proxyUrl || "https://api.anthropic.com").replace(/\/+$/, "");
     let afterId: string | null = null;
     // API trả mới → cũ; lặp phân trang, chặn tối đa 10 trang để an toàn
     for (let page = 0; page < 10; page++) {
-      const url = new URL("https://api.anthropic.com/v1/models");
+      const url = new URL(`${baseUrl}/v1/models`);
       url.searchParams.set("limit", "100");
       if (afterId) url.searchParams.set("after_id", afterId);
-      const r = await fetch(url, {
-        headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
-      });
+      const headers: Record<string, string> = { "anthropic-version": "2023-06-01" };
+      if (key) headers["x-api-key"] = key;
+      const r = await fetch(url, { headers });
       if (!r.ok) return { source: "static", models: CLAUDE_MODELS };
       const data = (await r.json()) as {
         data?: Array<{ id?: string; display_name?: string }>;
@@ -155,7 +165,7 @@ async function fetchLiveClaudeModels(): Promise<{
 function isValidClaudeModel(id: string): boolean {
   if (CLAUDE_MODEL_IDS.includes(id)) return true;
   if (liveClaudeModelsCache?.list.some((m) => m.id === id)) return true;
-  return /^claude-[a-z0-9][a-z0-9.-]*$/i.test(id);
+  return /^claude-[a-z0-9][a-z0-9.-]*$/i.test(id) || id.includes("/") || id.startsWith("auto/");
 }
 
 /**
@@ -194,7 +204,7 @@ interface Provider {
   id: "claude" | "gemini";
   label: string;
   connected: boolean;
-  source: "oauth" | "api-key" | null;
+  source: "oauth" | "api-key" | "proxy" | null;
   note?: string;
   roles: Array<"edit" | "chat" | "image">;
   models: Array<{ id: string; label: string }>;
@@ -204,8 +214,9 @@ function homeDir(): string {
   return process.env.USERPROFILE || process.env.HOME || "";
 }
 
-/** "oauth" nếu có ~/.claude/.credentials.json (subscription Claude Code), "api-key" nếu chỉ có key env */
-function claudeSource(): "oauth" | "api-key" | null {
+/** "proxy" nếu có ANTHROPIC_BASE_URL, "oauth" nếu có ~/.claude/.credentials.json, "api-key" nếu chỉ có key env */
+function claudeSource(): "oauth" | "api-key" | "proxy" | null {
+  if (anthropicBaseUrl()) return "proxy";
   const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(homeDir(), ".claude");
   if (fs.existsSync(path.join(configDir, ".credentials.json"))) return "oauth";
   if (hasClaudeAuth()) return "api-key";

@@ -585,7 +585,7 @@ export function getChatSession(sessionId: string): ChatSessionRow | undefined {
     | undefined;
 }
 
-export function setSdkSessionId(sessionId: string, sdkSessionId: string): void {
+export function setSdkSessionId(sessionId: string, sdkSessionId: string | null): void {
   db.prepare("UPDATE chat_sessions SET sdkSessionId = ?, updatedAt = ? WHERE sessionId = ?").run(
     sdkSessionId,
     nowIso(),

@@ -4,7 +4,7 @@ import { Router } from "express";
 import matter from "gray-matter";
 import { nanoid } from "nanoid";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { hasClaudeAuth, paths, repoRoot } from "../config.js";
+import { anthropicModel, hasClaudeAuth, paths, repoRoot } from "../config.js";
 import { addTokenUsage } from "../db.js";
 import { HttpError, ensureDir, isKebabCase, toKebabAscii } from "../util.js";
 
@@ -158,6 +158,8 @@ router.post("/generate", async (req, res) => {
     settingSources: [],
     permissionMode: "default",
   };
+  const selectedModel = anthropicModel();
+  if (selectedModel) options.model = selectedModel;
 
   let resultText = "";
   let inTok = 0;
