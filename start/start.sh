@@ -88,7 +88,7 @@ RUN_FILE="$STATE_DIR/run.json"
 SRC_STAMP="$(node "$ROOT/start/build-stamp.mjs" --print)"
 
 kill_ports() {
-  for port in 6868 6869; do
+  for port in 6868 6869 6870 8000; do
     lsof -ti tcp:$port 2>/dev/null | xargs kill -9 2>/dev/null || true
   done
   rm -f "$RUN_FILE"

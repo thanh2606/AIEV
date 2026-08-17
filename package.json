@@ -1,19 +1,24 @@
 {
   "name": "ai-edit-video",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "AI Edit Video by noti.vn — Claude điều khiển HyperFrames + Remotion, dashboard port 6868",
+  "description": "AI Edit Video by noti.vn — Hybrid Architecture: Laravel API + Node.js Worker + Next.js Dashboard",
   "workspaces": [
     "apps/web",
     "apps/server",
+    "apps/node-worker",
     "engines/remotion"
   ],
   "scripts": {
-    "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
-    "build": "npm run build -w apps/server && npm run build -w apps/web",
-    "start": "concurrently -n server,web -c yellow,cyan \"npm run start -w apps/server\" \"npm run start -w apps/web\"",
-    "typecheck": "npm run typecheck -w apps/server && npm run typecheck -w apps/web && npm run typecheck -w engines/remotion"
+    "dev": "concurrently -n laravel,worker,web,horizon,reverb -c yellow,magenta,cyan,blue,green \"npm run dev:laravel\" \"npm run dev -w apps/node-worker\" \"npm run dev -w apps/web\" \"npm run dev:horizon\" \"npm run dev:reverb\"",
+    "dev:laravel": "cd apps/laravel-api && php artisan serve --port=8000",
+    "dev:horizon": "cd apps/laravel-api && php artisan horizon",
+    "dev:reverb": "cd apps/laravel-api && php artisan reverb:start",
+    "dev:legacy": "concurrently -n server,web -c yellow,cyan \"npm run dev -w apps/server\" \"npm run dev -w apps/web\"",
+    "build": "npm run build -w apps/node-worker && npm run build -w apps/web",
+    "start": "concurrently -n laravel,worker,web -c yellow,magenta,cyan \"npm run dev:laravel\" \"npm run start -w apps/node-worker\" \"npm run start -w apps/web\"",
+    "typecheck": "npm run typecheck -w apps/node-worker && npm run typecheck -w apps/web && npm run typecheck -w engines/remotion"
   },
   "devDependencies": {
     "concurrently": "^10.0.4"

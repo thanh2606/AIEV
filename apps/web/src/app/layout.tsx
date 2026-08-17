@@ -26,7 +26,7 @@ const THEME_SCRIPT = `try{if(localStorage.getItem("theme")==="dark")document.doc
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body>
+      <body suppressHydrationWarning>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         <StaleChunkGuard />
         <LanguageProvider>

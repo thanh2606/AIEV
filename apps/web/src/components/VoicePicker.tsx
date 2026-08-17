@@ -166,13 +166,14 @@ const PITCH_BANDS: Record<"nam" | "nu", { low: number; high: number }> = {
 
 /** Key dictionary cho chữ mô tả giọng, vd "nữ trầm". */
 function qualifierKey(v: TtsVoice): string {
-  if (v.gender === "trung-tinh") return "ttv.voice.q.neutral";
-  const band = PITCH_BANDS[v.gender];
-  // f0 = 0 nghĩa là CHƯA ĐO (giọng mới nhân bản chẳng hạn), không phải giọng
-  // trầm nhất đời - đừng để số 0 biến mọi giọng chưa đo thành "nam trầm".
-  const suffix =
-    v.f0 <= 0 ? "" : v.f0 < band.low ? "-low" : v.f0 >= band.high ? "-high" : "";
-  return v.gender === "nam"
+  const gender = v.gender === "male" ? "nam" : v.gender === "female" ? "nu" : v.gender === "neutral" ? "trung-tinh" : v.gender;
+  if (gender === "trung-tinh") return "ttv.voice.q.neutral";
+  const band = gender === "nam" ? PITCH_BANDS.nam : gender === "nu" ? PITCH_BANDS.nu : null;
+  if (!band || !v.f0 || v.f0 <= 0) {
+    return gender === "nam" ? "ttv.voice.q.male" : gender === "nu" ? "ttv.voice.q.female" : "ttv.voice.q.neutral";
+  }
+  const suffix = v.f0 < band.low ? "-low" : v.f0 >= band.high ? "-high" : "";
+  return gender === "nam"
     ? `ttv.voice.q.male${suffix}`
     : `ttv.voice.q.female${suffix}`;
 }
@@ -683,7 +684,7 @@ export function VoicePicker({
               )}
               {isGemini && (
                 <span className="ml-auto min-w-0 max-w-full truncate text-meta text-[var(--text-muted)]">
-                  {value.style.trim() || t("ttv.voice.style-default")}
+                  {value.style?.trim() || t("ttv.voice.style-default")}
                 </span>
               )}
             </>

@@ -4,7 +4,7 @@ set -u
 
 echo "  Đang dừng AI Edit Video..."
 STOPPED=false
-for port in 6868 6869; do
+for port in 6868 6869 6870 8000; do
   PIDS="$(lsof -ti tcp:$port 2>/dev/null || true)"
   if [ -n "$PIDS" ]; then
     echo "$PIDS" | xargs kill -9 2>/dev/null || true
@@ -15,4 +15,4 @@ done
 # Xóa dấu vết "đang chạy" - để lại thì lần chạy start sau tưởng hệ thống vẫn sống.
 rm -f "$(cd "$(dirname "$0")/.." && pwd)/.aiev/run.json"
 
-$STOPPED || echo "  Không có gì đang chạy trên port 6868/6869."
+$STOPPED || echo "  Không có gì đang chạy trên port 6868/6869/6870/8000."

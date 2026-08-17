@@ -1,0 +1,44 @@
+services:
+  mysql:
+    image: 'mysql/mysql-server:8.0'
+    ports:
+      - '${FORWARD_DB_PORT:-3306}:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD:-secret}'
+      MYSQL_ROOT_HOST: '%'
+      MYSQL_DATABASE: '${DB_DATABASE:-aiev}'
+      MYSQL_USER: '${DB_USERNAME:-aiev}'
+      MYSQL_PASSWORD: '${DB_PASSWORD:-secret}'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    volumes:
+      - './.runtime/mysql-data:/var/lib/mysql'
+    networks:
+      - aiev
+    healthcheck:
+      test:
+        - CMD
+        - mysqladmin
+        - ping
+        - '-p${DB_PASSWORD}'
+      retries: 3
+      timeout: 5s
+
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - '${FORWARD_REDIS_PORT:-6379}:6379'
+    volumes:
+      - './.runtime/redis-data:/data'
+    networks:
+      - aiev
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      retries: 3
+      timeout: 5s
+
+networks:
+  aiev:
+    driver: bridge

@@ -97,11 +97,11 @@ export function HardwareMeter() {
     };
   }, []);
 
-  if (!data) return null;
+  if (!data || !data.cpu || !data.gpu) return null;
 
   const gpu = data.gpu;
   const vram =
-    gpu.vramUsedMb !== null && gpu.vramTotalMb !== null
+    gpu.vramUsedMb != null && gpu.vramTotalMb != null
       ? tf("meter.vram", {
           used: String(Math.round(gpu.vramUsedMb / 102.4) / 10),
           total: String(Math.round(gpu.vramTotalMb / 102.4) / 10),
@@ -113,10 +113,10 @@ export function HardwareMeter() {
     <div className="hidden items-center gap-3 lg:flex">
       <Meter
         label={t("meter.cpu")}
-        percent={data.cpu.percent}
+        percent={data.cpu.percent ?? 0}
         title={tf("meter.cpu-title", {
           model: data.cpu.model || t("meter.unknown"),
-          threads: String(data.cpu.threads),
+          threads: String(data.cpu.threads ?? 1),
         })}
       />
       {gpu.available && gpu.percent !== null && (

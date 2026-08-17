@@ -1,9 +1,9 @@
-﻿# AI Edit Video by noti.vn - dừng toàn bộ hệ thống (web 6868 + server 6869)
+# AI Edit Video by noti.vn - dừng toàn bộ hệ thống (web 6868 + server 6869)
 
 $ErrorActionPreference = "SilentlyContinue"
 $killed = 0
 
-foreach ($port in 6868, 6869) {
+foreach ($port in 6868, 6869, 6870, 8000) {
     $pids = Get-NetTCPConnection -LocalPort $port -State Listen |
         Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($procId in $pids) {

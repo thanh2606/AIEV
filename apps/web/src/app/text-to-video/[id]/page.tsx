@@ -885,7 +885,7 @@ export default function TextToVideoDetailPage() {
       : hasSourceText
         ? t("ttv.no-script")
         : t("ttv.no-source-yet");
-  const voiceSummary = voice.name.trim() || t("ttv.voice-not-chosen");
+  const voiceSummary = voice.name?.trim() || t("ttv.voice-not-chosen");
   const configSummary = `${output.width}x${output.height} · ${output.fps}fps · ${styleDisplayName(
     stylesData,
     output.styleId,
