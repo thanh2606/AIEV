@@ -294,14 +294,17 @@ export async function runAgent(
   // Lượt auto-resume (continueRun) GIỮ NGUYÊN mốc bắt đầu - UI đo elapsed liền mạch.
   if (!opts.continueRun) db.startChatRun(sessionId);
 
-  // Message đầu của session mới: prepend CLAUDE.md (SDK không tự nạp CLAUDE.md)
+  // Message đầu của session mới: prepend AGENT_INSTRUCTIONS.md (tinh gọn) hoặc CLAUDE.md
   let prompt = message;
   if (!sdkSessionId) {
     try {
-      const claudeMd = fs.readFileSync(path.join(repoRoot, "CLAUDE.md"), "utf8");
-      prompt = `<project-instructions source="CLAUDE.md">\n${claudeMd}\n</project-instructions>\n\n${message}`;
+      const instructionsFile = fs.existsSync(path.join(repoRoot, "AGENT_INSTRUCTIONS.md"))
+        ? path.join(repoRoot, "AGENT_INSTRUCTIONS.md")
+        : path.join(repoRoot, "CLAUDE.md");
+      const instructions = fs.readFileSync(instructionsFile, "utf8");
+      prompt = `<project-instructions source="${path.basename(instructionsFile)}">\n${instructions}\n</project-instructions>\n\n${message}`;
     } catch {
-      /* không có CLAUDE.md thì thôi */
+      /* không có file hướng dẫn thì thôi */
     }
   }
 
@@ -311,13 +314,15 @@ export async function runAgent(
     permissionMode: "acceptEdits",
     allowedTools: ALLOWED_TOOLS,
     includePartialMessages: true,
-    // Phiên edit goal='final' chạy pipeline dài (transcribe → scene → draft → verify → final)
-    // - 100 turn không đủ, lượt kết thúc với subtype != success giữa chừng
-    // Trần lượt của phiên dựng video lấy từ Cấu hình (đọc mỗi lần chạy nên đổi
-    // là ăn ngay). Phiên chat thường giữ 100 - nó ngắn, không phải chỗ tốn tiền.
-    maxTurns: session?.goal === "final" ? readRenderSettings().aiMaxTurns : 100,
+    // Trần lượt của phiên dựng video lấy từ Cấu hình; phiên chat thường siết ở 30 lượt để tiết kiệm token
+    maxTurns: session?.goal === "final" ? readRenderSettings().aiMaxTurns : 30,
     settingSources: ["project", "user"],
     systemPrompt: { type: "preset", preset: "claude_code" },
+    // Bật Prompt Caching cho Anthropic / Agent SDK
+    promptCaching: true,
+    headers: {
+      "anthropic-beta": "prompt-caching-2024-07-31",
+    },
   };
   if (sdkSessionId) options.resume = sdkSessionId;
   // Model/effort người dùng đã chọn cho phiên - fallback anthropicModel() khi dùng proxy

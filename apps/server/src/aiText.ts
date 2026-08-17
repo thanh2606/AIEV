@@ -46,6 +46,10 @@ export async function generateText(input: {
     allowedTools: [],
     settingSources: [],
     permissionMode: "default",
+    promptCaching: true,
+    headers: {
+      "anthropic-beta": "prompt-caching-2024-07-31",
+    },
   };
   const selectedModel = input.model || anthropicModel();
   if (selectedModel) options.model = selectedModel;

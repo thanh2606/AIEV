@@ -105,13 +105,13 @@ const UPDATE_CHANNEL_OPTIONS: SegOption<UpdateChannel>[] = [
 const AI_ATTEMPT_OPTIONS: SegOption[] = [1, 2, 3, 4, 6, 8, 12].map((v) => ({
   value: v,
   label: String(v),
-  recommended: v === 4,
+  recommended: v === 2,
 }));
 
-const AI_TURN_OPTIONS: SegOption[] = [50, 100, 150, 200, 300].map((v) => ({
+const AI_TURN_OPTIONS: SegOption[] = [15, 25, 30, 50, 100, 150, 200, 300].map((v) => ({
   value: v,
   label: String(v),
-  recommended: v === 300,
+  recommended: v === 30,
 }));
 
 /**
