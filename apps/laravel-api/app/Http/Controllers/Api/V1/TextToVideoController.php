@@ -232,7 +232,8 @@ class TextToVideoController extends Controller
 
         $nodeWorker = config('aiev.node_worker_url');
         try {
-            $res = Http::timeout(300)->post("{$nodeWorker}/api/text-to-video/{$id}/script", $request->all());
+            $payload = array_merge($request->all(), ['id' => $id]);
+            $res = Http::timeout(300)->post("{$nodeWorker}/internal/agent/script", $payload);
             if ($res->successful()) {
                 $newMeta = $res->json();
                 $this->writeMeta($id, $newMeta);

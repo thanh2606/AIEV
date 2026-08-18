@@ -1,0 +1,30 @@
+FROM php:8.4-cli
+
+# Cài đặt các gói hệ thống cần thiết
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    unzip \
+    default-mysql-client
+
+# Xóa cache apt để giảm kích thước image
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt các extension PHP cần thiết
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+# Cài đặt Redis extension thông qua PECL
+RUN pecl install redis && docker-php-ext-enable redis
+
+# Cài đặt Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Thư mục làm việc (Sẽ được ánh xạ từ volume sang /app)
+WORKDIR /app/apps/laravel-api
+
+# Mặc định, container sẽ chạy như một base image, lệnh thực tế sẽ được định nghĩa ở docker-compose.yml
+CMD ["php", "-a"]

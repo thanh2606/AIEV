@@ -113,28 +113,82 @@ class ProcessRenderJob implements ShouldQueue
     {
         $this->updateProgress($job, 10, 'Gọi Gemini API...');
         // TODO: Implement Gemini image generation via HTTP
-        // Tạm thời dispatch tới Node Worker
-        $this->delegateToNodeWorker($job, 'generate-image');
+        throw new \RuntimeException("generate-image not fully implemented");
     }
 
     private function autoCut(AievJob $job): void
     {
-        $this->delegateToNodeWorker($job, 'auto-cut');
+        if ($job->scene_id === 'plan') {
+            $this->updateProgress($job, 10, 'Đang gửi video cho AI (Node Worker)...');
+            $metaFile = config('aiev.paths.auto_cut') . "/{$job->project_id}/meta.json";
+            if (!file_exists($metaFile)) throw new \RuntimeException("Không tìm thấy meta.json");
+            $meta = json_decode(file_get_contents($metaFile), true);
+            $transcript = $meta['transcript'] ?? ''; // Giả sử có sẵn từ bước transcribe
+
+            $response = \Illuminate\Support\Facades\Http::timeout(600)
+                ->post(config('aiev.node_worker_url') . '/internal/agent/autocut-plan', [
+                    'transcriptText' => $transcript,
+                    'model' => 'gemini-2.5-pro'
+                ]);
+
+            if (!$response->ok()) throw new \RuntimeException("Node Worker lỗi: HTTP {$response->status()}");
+            
+            $meta['segments'] = $response->json();
+            file_put_contents($metaFile, json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        } else {
+            // Cut step (Hyperframes)
+            $this->updateProgress($job, 20, 'Đang tiến hành cắt video (Hyperframes)...');
+            $autoCutDir = config('aiev.paths.auto_cut') . '/' . $job->project_id;
+            $this->execCli($job, 'npx', [
+                'hyperframes', 'cut',
+                '--project', $autoCutDir
+            ], $autoCutDir);
+        }
     }
 
     private function autoTrim(AievJob $job): void
     {
-        $this->delegateToNodeWorker($job, 'auto-trim');
+        throw new \RuntimeException("auto-trim not yet migrated");
     }
 
     private function textToVideo(AievJob $job): void
     {
-        $this->delegateToNodeWorker($job, 'text-to-video');
+        if ($job->scene_id === 'script') {
+            $this->updateProgress($job, 10, 'Đang gọi AI viết kịch bản (Node Worker)...');
+            
+            $response = \Illuminate\Support\Facades\Http::timeout(600)
+                ->post(config('aiev.node_worker_url') . '/internal/agent/script', [
+                    'id' => $job->project_id,
+                    'targetSeconds' => 60
+                ]);
+
+            if (!$response->ok()) throw new \RuntimeException("Node Worker lỗi: HTTP {$response->status()}");
+            
+            $newMeta = $response->json();
+            $metaFile = config('aiev.paths.text_to_video') . "/{$job->project_id}/meta.json";
+            file_put_contents($metaFile, json_encode($newMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        } else {
+            throw new \RuntimeException("text-to-video scene {$job->scene_id} not mapped");
+        }
     }
 
     private function translateVideo(AievJob $job): void
     {
-        $this->delegateToNodeWorker($job, 'translate-video');
+        if ($job->scene_id === 'transcribe') {
+            $this->updateProgress($job, 10, 'Đang bóc băng âm thanh (Node Worker)...');
+            $dir = config('aiev.paths.translate_video') . '/' . $job->project_id;
+            
+            $response = \Illuminate\Support\Facades\Http::timeout(1800)
+                ->post(config('aiev.node_worker_url') . '/internal/transcribe', [
+                    'videoAbs' => "{$dir}/source.mp4",
+                    'outJsonAbs' => "{$dir}/transcript.json",
+                    'language' => 'auto'
+                ]);
+
+            if (!$response->ok()) throw new \RuntimeException("Node Worker lỗi: HTTP {$response->status()}");
+        } else {
+            throw new \RuntimeException("translate-video scene {$job->scene_id} not mapped");
+        }
     }
 
     /** Chạy CLI và stream output vào job log */
@@ -157,27 +211,7 @@ class ProcessRenderJob implements ShouldQueue
         }
     }
 
-    /** Delegate job phức tạp cho Node Worker (backward compatible) */
-    private function delegateToNodeWorker(AievJob $job, string $type): void
-    {
-        $this->updateProgress($job, 5, "Chuyển tiếp cho Node Worker ({$type})...");
 
-        try {
-            $response = \Illuminate\Support\Facades\Http::timeout(1800)
-                ->post(config('aiev.node_worker_url') . '/internal/job/execute', [
-                    'jobId' => $job->id,
-                    'type' => $type,
-                    'projectId' => $job->project_id,
-                    'sceneId' => $job->scene_id,
-                ]);
-
-            if (!$response->ok()) {
-                throw new \RuntimeException("Node Worker trả lỗi: HTTP {$response->status()}");
-            }
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            throw new \RuntimeException("Không kết nối được Node Worker: {$e->getMessage()}");
-        }
-    }
 
     private function updateProgress(AievJob $job, int $progress, string $step): void
     {

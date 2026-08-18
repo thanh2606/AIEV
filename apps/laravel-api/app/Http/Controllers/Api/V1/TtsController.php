@@ -104,12 +104,16 @@ class TtsController extends Controller
             $nodeWorker = config('aiev.node_worker_url');
             try {
                 $res = Http::withBody($request->getContent(), 'application/json')
-                    ->post("{$nodeWorker}/api/tts/preview");
+                    ->post("{$nodeWorker}/internal/tts/preview");
                 if ($res->successful()) {
-                    return response($res->body(), $res->status())
-                        ->header('Content-Type', 'audio/wav')
-                        ->header('x-tts-model', $res->header('x-tts-model') ?? 'vieneu')
-                        ->header('x-tts-duration', $res->header('x-tts-duration') ?? '0');
+                    $data = $res->json();
+                    if (isset($data['audioBase64'])) {
+                        $pcm = base64_decode($data['audioBase64']);
+                        return response($pcm, 200)
+                            ->header('Content-Type', 'audio/wav')
+                            ->header('x-tts-model', $data['modelUsed'] ?? 'vieneu')
+                            ->header('x-tts-duration', number_format((float) ($data['durationSec'] ?? 0), 2));
+                    }
                 }
             } catch (\Throwable $e) {
                 return response()->json(['error' => ['code' => 'NODE_WORKER_ERROR', 'message' => 'Lỗi kết nối node-worker: ' . $e->getMessage()]], 500);

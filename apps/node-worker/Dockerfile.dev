@@ -1,0 +1,18 @@
+FROM node:22-bookworm
+
+# Cài đặt FFmpeg và Python (cần thiết cho bóc lời, tạo giọng TTS local, và cắt video)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    python3 \
+    python3-pip \
+    python3-venv \
+    build-essential
+
+# Xóa cache apt
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Chuyển thư mục làm việc (sẽ mount tới thư mục AIEV gốc)
+WORKDIR /app
+
+# Lệnh mặc định sẽ được định nghĩa trong docker-compose.yml
+CMD ["npm", "run", "dev", "-w", "apps/node-worker"]

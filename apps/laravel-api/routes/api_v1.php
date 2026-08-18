@@ -65,8 +65,10 @@ Route::middleware('aiev.auth')->group(function () {
     Route::get('projects/{id}/review', [ProjectReviewController::class, 'show']);
     Route::post('projects/{id}/review', [ProjectReviewController::class, 'store']);
     Route::get('projects/{id}/clips', [ProjectClipsController::class, 'index']);
+    Route::post('projects/{id}/clips/suggest', [ProjectClipsController::class, 'suggest']);
     Route::get('projects/{id}/qc', [ProjectQcController::class, 'show']);
     Route::get('projects/{id}/publish', [ProjectPublishController::class, 'show']);
+    Route::post('projects/{id}/publish', [ProjectPublishController::class, 'store']);
     Route::post('projects/{id}/auto-trim', [ProjectAutoTrimController::class, 'store']);
     Route::post('projects/{id}/thumbnail', [ThumbnailController::class, 'generateProjectThumbnail']);
     Route::post('projects/{id}/scenes/{sceneId}/thumbnail', [ThumbnailController::class, 'generateSceneThumbnail']);

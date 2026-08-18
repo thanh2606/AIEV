@@ -107,7 +107,8 @@ export async function generateScript(
   });
   
   const run = (async () => {
-    for await (const msg of q) {
+    for await (const raw of q) {
+      const msg = raw as Record<string, unknown>;
       if (msg.type === "result" && typeof msg.result === "string") {
         resultText = msg.result;
       }

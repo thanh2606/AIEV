@@ -18,7 +18,7 @@ class VoiceController extends Controller
     {
         $nodeWorker = config('aiev.node_worker_url');
         try {
-            $res = Http::get("{$nodeWorker}/api/voices", $request->query());
+            $res = Http::get("{$nodeWorker}/internal/tts/clone");
             if ($res->successful()) {
                 return response()->json($res->json());
             }
@@ -30,27 +30,39 @@ class VoiceController extends Controller
     /** POST /api/v1/voices */
     public function store(Request $request): JsonResponse
     {
-        $nodeWorker = config('aiev.node_worker_url');
-        // Proxy multipart file upload
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $response = Http::attach(
-                'file',
-                file_get_contents($file->getPathname()),
-                $file->getClientOriginalName()
-            )->post("{$nodeWorker}/api/voices", $request->except('file'));
-            
-            return response()->json($response->json(), $response->status());
+        if (!$request->hasFile('file')) {
+            return response()->json(['error' => ['code' => 'FILE_REQUIRED', 'message' => 'Thiếu file mẫu giọng']], 400);
         }
 
-        return response()->json(['error' => ['code' => 'FILE_REQUIRED', 'message' => 'Thiếu file mẫu giọng']], 400);
+        $file = $request->file('file');
+        
+        // Save file to a temporary location to pass srcAbs to node-worker
+        $tempPath = sys_get_temp_dir() . '/' . uniqid('voice_') . '.' . $file->getClientOriginalExtension();
+        move_uploaded_file($file->getPathname(), $tempPath);
+
+        $nodeWorker = config('aiev.node_worker_url');
+        $payload = array_merge($request->except('file'), [
+            'srcAbs' => $tempPath
+        ]);
+
+        try {
+            $response = Http::post("{$nodeWorker}/internal/tts/clone", $payload);
+            
+            // Delete temp file after Node worker is done with it
+            @unlink($tempPath);
+
+            return response()->json($response->json(), $response->status());
+        } catch (\Throwable $e) {
+            @unlink($tempPath);
+            return response()->json(['error' => ['message' => 'Lỗi kết nối node-worker: ' . $e->getMessage()]], 500);
+        }
     }
 
     /** PATCH /api/v1/voices/{id} */
     public function update(Request $request, string $id): JsonResponse
     {
         $nodeWorker = config('aiev.node_worker_url');
-        $response = Http::patch("{$nodeWorker}/api/voices/{$id}", $request->all());
+        $response = Http::patch("{$nodeWorker}/internal/tts/clone/{$id}", $request->all());
         return response()->json($response->json(), $response->status());
     }
 
@@ -58,7 +70,7 @@ class VoiceController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $nodeWorker = config('aiev.node_worker_url');
-        $response = Http::delete("{$nodeWorker}/api/voices/{$id}");
+        $response = Http::delete("{$nodeWorker}/internal/tts/clone/{$id}");
         return response()->json($response->json(), $response->status());
     }
 
@@ -66,13 +78,19 @@ class VoiceController extends Controller
     public function preview(Request $request, string $id)
     {
         $nodeWorker = config('aiev.node_worker_url');
-        $response = Http::post("{$nodeWorker}/api/voices/{$id}/preview", $request->all());
+        
+        $payload = array_merge($request->all(), ['id' => $id]);
+        $response = Http::post("{$nodeWorker}/internal/tts/clone-preview", $payload);
         
         if ($response->successful()) {
-            return response($response->body(), 200)
-                ->header('Content-Type', $response->header('Content-Type'))
-                ->header('X-Tts-Model', $response->header('X-Tts-Model'))
-                ->header('X-Tts-Duration', $response->header('X-Tts-Duration'));
+            $data = $response->json();
+            if (isset($data['audioBase64'])) {
+                $pcm = base64_decode($data['audioBase64']);
+                return response($pcm, 200)
+                    ->header('Content-Type', 'audio/wav')
+                    ->header('x-tts-model', $data['modelUsed'] ?? 'vieneu')
+                    ->header('x-tts-duration', number_format((float) ($data['durationSec'] ?? 0), 2));
+            }
         }
         
         return response()->json($response->json(), $response->status());

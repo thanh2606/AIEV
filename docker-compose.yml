@@ -39,6 +39,78 @@ services:
       retries: 3
       timeout: 5s
 
+  laravel-api:
+    build:
+      context: .
+      dockerfile: apps/laravel-api/Dockerfile.dev
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports:
+      - '${FORWARD_API_PORT:-8000}:8000'
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/app
+    networks:
+      - aiev
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  laravel-horizon:
+    build:
+      context: .
+      dockerfile: apps/laravel-api/Dockerfile.dev
+    command: php artisan horizon
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/app
+    networks:
+      - aiev
+    depends_on:
+      - laravel-api
+
+  laravel-reverb:
+    build:
+      context: .
+      dockerfile: apps/laravel-api/Dockerfile.dev
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - '${FORWARD_REVERB_PORT:-8080}:8080'
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./:/app
+    networks:
+      - aiev
+    depends_on:
+      - laravel-api
+
+  node-worker:
+    build:
+      context: .
+      dockerfile: apps/node-worker/Dockerfile.dev
+    command: npm run dev -w apps/node-worker
+    ports:
+      - '${FORWARD_NODE_WORKER_PORT:-6870}:6870'
+    volumes:
+      - ./:/app
+      # Mount thư mục .claude của host vào để chia sẻ Auth Token của Claude CLI
+      - ~/.claude:/root/.claude
+    networks:
+      - aiev
+
 networks:
   aiev:
     driver: bridge
