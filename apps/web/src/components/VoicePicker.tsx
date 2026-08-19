@@ -166,7 +166,7 @@ const PITCH_BANDS: Record<"nam" | "nu", { low: number; high: number }> = {
 
 /** Key dictionary cho chữ mô tả giọng, vd "nữ trầm". */
 function qualifierKey(v: TtsVoice): string {
-  const gender = v.gender === "male" ? "nam" : v.gender === "female" ? "nu" : v.gender === "neutral" ? "trung-tinh" : v.gender;
+  const gender = v.gender;
   if (gender === "trung-tinh") return "ttv.voice.q.neutral";
   const band = gender === "nam" ? PITCH_BANDS.nam : gender === "nu" ? PITCH_BANDS.nu : null;
   if (!band || !v.f0 || v.f0 <= 0) {

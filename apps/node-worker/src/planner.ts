@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { logger } from "./logger.js";
 
 /**
  * Claude AI Planner - Single-turn Task Schedule Generator.
@@ -100,47 +101,75 @@ Task types:
 
 export async function planAgent(input: PlanInput): Promise<PlanResult> {
   const { sessionId, projectId, message, model, effort, repoRoot } = input;
+  logger.info(`[Planner] Bắt đầu suy luận plan cho projectId: "${projectId}", sessionId: "${sessionId}"...`);
+
+  let projectContext = "";
+  if (projectId) {
+    const pMetaPath = path.join(repoRoot, "video-projects", projectId, "meta.json");
+    const pTranscriptPath = path.join(repoRoot, "video-projects", projectId, "assets", "transcript.json");
+    if (fs.existsSync(pMetaPath)) {
+      try {
+        const pMeta = fs.readFileSync(pMetaPath, "utf8");
+        projectContext += `\n\n## Project Meta (${projectId}):\n\`\`\`json\n${pMeta}\n\`\`\``;
+      } catch (e) {
+        logger.warn(`[Planner] Không thể đọc file ${pMetaPath}:`, e);
+      }
+    }
+    if (fs.existsSync(pTranscriptPath)) {
+      try {
+        const pTranscript = fs.readFileSync(pTranscriptPath, "utf8");
+        projectContext += `\n\n## Project Transcript:\n\`\`\`json\n${pTranscript}\n\`\`\``;
+      } catch (e) {
+        logger.warn(`[Planner] Không thể đọc file ${pTranscriptPath}:`, e);
+      }
+    }
+  }
 
   const systemPrompt = buildSystemPrompt(repoRoot);
-  const prompt = `${systemPrompt}\n\n---\n\nProject ID: ${projectId || "không có"}\n\nYêu cầu người dùng:\n${message}`;
+  const prompt = `${systemPrompt}\n\n---\n\nProject ID: ${projectId || "không có"}${projectContext}\n\nYêu cầu người dùng:\n${message}`;
 
+  const selectedModel = model || process.env.ANTHROPIC_MODEL || "ag/gemini-3.7-flash-high";
   const options: Record<string, unknown> = {
     cwd: repoRoot,
     permissionMode: "acceptEdits",
     allowedTools: ALLOWED_TOOLS,
     maxTurns: 1, // ĐÚNG 1 TURN duy nhất
     systemPrompt: { type: "preset", preset: "claude_code" },
-    promptCaching: true,
-    headers: {
-      "anthropic-beta": "prompt-caching-2024-07-31",
-    },
+    model: selectedModel,
   };
 
-  if (model) options.model = model;
   if (effort) options.effort = effort;
 
   let resultText = "";
   let usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  const startTime = Date.now();
 
-  const q = query({ prompt, options: options as Parameters<typeof query>[0]["options"] });
+  try {
+    const q = query({ prompt, options: options as Parameters<typeof query>[0]["options"] });
 
-  for await (const raw of q) {
-    const msg = raw as Record<string, unknown>;
+    for await (const raw of q) {
+      const msg = raw as Record<string, unknown>;
 
-    if (msg.type === "result") {
-      resultText = typeof msg.result === "string" ? msg.result : "";
-      // Extract usage
-      const u = msg.usage as Record<string, number> | undefined;
-      if (u) {
-        usage.inputTokens = u.input_tokens ?? 0;
-        usage.outputTokens = u.output_tokens ?? 0;
+      if (msg.type === "result") {
+        resultText = typeof msg.result === "string" ? msg.result : "";
+        // Extract usage
+        const u = msg.usage as Record<string, number> | undefined;
+        if (u) {
+          usage.inputTokens = u.input_tokens ?? 0;
+          usage.outputTokens = u.output_tokens ?? 0;
+        }
+        usage.costUsd = typeof msg.total_cost_usd === "number" ? msg.total_cost_usd : 0;
       }
-      usage.costUsd = typeof msg.total_cost_usd === "number" ? msg.total_cost_usd : 0;
     }
+    logger.info(`[Planner] AI hoàn thành plan sau ${Date.now() - startTime}ms (Tokens: ${usage.inputTokens}/${usage.outputTokens})`);
+  } catch (err) {
+    logger.error(`[Planner] AI suy luận plan thất bại:`, err);
+    throw err;
   }
 
   // Parse JSON từ output của Claude
   const tasks = extractTasks(resultText);
+  logger.info(`[Planner] Đã trích xuất ${tasks.length} tasks từ phản hồi AI`);
 
   return { text: resultText, tasks, usage };
 }

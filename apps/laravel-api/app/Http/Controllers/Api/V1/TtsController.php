@@ -38,7 +38,7 @@ class TtsController extends Controller
 
         $nodeWorker = $this->getNodeWorkerUrl();
         try {
-            $res = Http::timeout(5)->get("{$nodeWorker}/internal/tts/engines");
+            $res = Http::timeout(3)->get("{$nodeWorker}/internal/tts/engines");
             if ($res->successful()) {
                 $st = $res->json();
                 if (is_array($st)) {
@@ -46,7 +46,7 @@ class TtsController extends Controller
                 }
             }
         } catch (\Throwable $e) {
-            Log::warning("TtsController engines check error: {$e->getMessage()}", ['exception' => $e]);
+            Log::warning("TtsController engines check error: {$e->getMessage()}");
         }
 
         return response()->json([$geminiStatus, $vieneuStatus]);
@@ -90,12 +90,12 @@ class TtsController extends Controller
             $nodeWorker = $this->getNodeWorkerUrl();
             $nodeVoices = [];
             try {
-                $res = Http::timeout(10)->get("{$nodeWorker}/internal/tts/voices");
+                $res = Http::timeout(3)->get("{$nodeWorker}/internal/tts/voices");
                 if ($res->successful()) {
                     $nodeVoices = $res->json();
                 }
             } catch (\Throwable $e) {
-                Log::warning("TtsController node-worker voices fetch error: {$e->getMessage()}", ['exception' => $e]);
+                Log::warning("TtsController node-worker voices fetch error: {$e->getMessage()}");
             }
 
             if (!empty($nodeVoices) && is_array($nodeVoices)) {
@@ -125,10 +125,13 @@ class TtsController extends Controller
     private function getNodeWorkerUrl(): string
     {
         $url = config('aiev.node_worker_url', 'http://localhost:6870');
-        if (str_contains($url, 'localhost')) {
-            if (gethostbyname('node-worker') !== 'node-worker') {
-                return str_replace('localhost', 'node-worker', $url);
-            }
+        $hasNodeWorkerHost = (gethostbyname('node-worker') !== 'node-worker');
+
+        if (str_contains($url, 'node-worker') && !$hasNodeWorkerHost) {
+            return str_replace('node-worker', 'localhost', $url);
+        }
+        if (str_contains($url, 'localhost') && $hasNodeWorkerHost) {
+            return str_replace('localhost', 'node-worker', $url);
         }
         return $url;
     }

@@ -44,18 +44,16 @@ services:
       context: .
       dockerfile: apps/laravel-api/Dockerfile.dev
     command: php artisan serve --host=0.0.0.0 --port=8000
-    ports:
-      - '${FORWARD_API_PORT:-8000}:8000'
+    network_mode: "host"
     environment:
-      DB_HOST: mysql
+      AIEV_REPO_ROOT: /app
+      DB_HOST: 127.0.0.1
       DB_PORT: 3306
-      REDIS_HOST: redis
+      REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
-      NODE_WORKER_URL: http://node-worker:6870
+      NODE_WORKER_URL: http://127.0.0.1:6870
     volumes:
       - ./:/app
-    networks:
-      - aiev
     depends_on:
       mysql:
         condition: service_healthy
@@ -67,16 +65,16 @@ services:
       context: .
       dockerfile: apps/laravel-api/Dockerfile.dev
     command: php artisan horizon
+    network_mode: "host"
     environment:
-      DB_HOST: mysql
+      AIEV_REPO_ROOT: /app
+      DB_HOST: 127.0.0.1
       DB_PORT: 3306
-      REDIS_HOST: redis
+      REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
-      NODE_WORKER_URL: http://node-worker:6870
+      NODE_WORKER_URL: http://127.0.0.1:6870
     volumes:
       - ./:/app
-    networks:
-      - aiev
     depends_on:
       - laravel-api
 
@@ -85,18 +83,16 @@ services:
       context: .
       dockerfile: apps/laravel-api/Dockerfile.dev
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
-    ports:
-      - '${FORWARD_REVERB_PORT:-8080}:8080'
+    network_mode: "host"
     environment:
-      DB_HOST: mysql
+      AIEV_REPO_ROOT: /app
+      DB_HOST: 127.0.0.1
       DB_PORT: 3306
-      REDIS_HOST: redis
+      REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
-      NODE_WORKER_URL: http://node-worker:6870
+      NODE_WORKER_URL: http://127.0.0.1:6870
     volumes:
       - ./:/app
-    networks:
-      - aiev
     depends_on:
       - laravel-api
 
@@ -105,16 +101,14 @@ services:
       context: .
       dockerfile: apps/node-worker/Dockerfile.dev
     command: npm run dev -w apps/node-worker
-    ports:
-      - '${FORWARD_NODE_WORKER_PORT:-6870}:6870'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: "host"
+    environment:
+      AIEV_REPO_ROOT: /app
+      NETWORK_MODE: host
     volumes:
       - ./:/app
       # Mount thư mục .claude của host vào để chia sẻ Auth Token của Claude CLI
       - ~/.claude:/root/.claude
-    networks:
-      - aiev
 
 networks:
   aiev:

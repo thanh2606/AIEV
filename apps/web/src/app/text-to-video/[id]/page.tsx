@@ -200,8 +200,8 @@ function deriveTtvStage(m: TextToVideoMeta): {
   if (m.projectId) {
     return { stage: 5, active: false, complete: m.status === "done" };
   }
-  if (m.script.length > 0) {
-    return { stage: m.voice.name ? 4 : 3, active: false, complete: false };
+  if (m.script && m.script.length > 0) {
+    return { stage: m.voice?.name ? 4 : 3, active: false, complete: false };
   }
   const hasSource =
     m.article !== null || m.source.text.trim() !== "" || m.source.url.trim() !== "";
@@ -216,6 +216,8 @@ interface ChildProject {
   output: string | null;
   /** Job đang chạy của project con - tiến trình THẬT của việc dựng */
   runningJob: Job | null;
+  /** Job thất bại gần nhất */
+  failedJob: Job | null;
   /** Đầu vào cho PipelineTimeline; null khi chưa đọc được project */
   pipelineInput: Parameters<typeof PipelineTimeline>[0] | null;
   error: string | null;
@@ -320,6 +322,7 @@ function useChildProject(projectId: string | null): ChildProject {
       ? `${mediaUrl(output)}?v=${encodeURIComponent(project?.updatedAt ?? "")}`
       : null,
     runningJob: jobs.find((j) => j.status === "running") ?? null,
+    failedJob: jobs.find((j) => j.status === "failed") ?? null,
     pipelineInput: project
       ? {
           metaStatus: project.status,
@@ -824,15 +827,20 @@ export default function TextToVideoDetailPage() {
     );
   }
 
-  const running = RUNNING_STATUS.includes(session.status);
   const stage = deriveTtvStage(session);
   const article = session.article;
   const chars = scriptChars(script);
   const estSeconds = estimateScriptSeconds(script);
   const hasSourceText = source.text.trim() !== "" || article !== null;
+
+  const hasFailedChildJob = child.failedJob !== null && child.runningJob === null;
+  const isActivelyRunning =
+    (RUNNING_STATUS.includes(session.status) && !hasFailedChildJob) ||
+    child.runningJob !== null ||
+    (job && job.status === "running");
+  const running = isActivelyRunning;
   const canScript = hasSourceText && !running;
-  const canBuild =
-    script.length > 0 && voice.name.trim() !== "" && !running && !session.projectId;
+  const canBuild = script.length > 0 && voice.name.trim() !== "" && !isActivelyRunning;
   // Ô nhập chỉ khóa khi có việc đang chạy - xong rồi vẫn sửa & chạy lại được
   const locked = running;
   // Kích thước hiện tại khớp preset nào (null = người dùng/server đặt số khác)
@@ -860,11 +868,11 @@ export default function TextToVideoDetailPage() {
     child.runningJob ?? (job && job.status === "running" ? job : null);
 
   const outputStatus: WorkspaceStatus =
-    session.status === "failed"
+    session.status === "failed" || hasFailedChildJob
       ? "failed"
       : child.url
         ? "done"
-        : running || session.projectId
+        : running || (session.projectId && !hasFailedChildJob)
           ? "running"
           : "idle";
 
@@ -1415,7 +1423,7 @@ export default function TextToVideoDetailPage() {
             progress={activeJob ? activeJob.progress : null}
             step={activeJob?.step}
             aspect={aspect}
-            error={shortError(session.error)}
+            error={shortError(session.error || child.failedJob?.step)}
             collapsed={group.isCollapsed("build")}
             onToggle={() => group.toggle("build")}
             summary={buildSummary}
@@ -1425,16 +1433,16 @@ export default function TextToVideoDetailPage() {
               bodyKey: "help.ttv-build.body",
             }}
             actions={
-              !session.projectId && (
-                <Button disabled={!canBuild || busy !== null} onClick={() => run("build")}>
-                  {busy === "build" ? (
-                    <Loader2 size={15} strokeWidth={2} className="animate-spin" />
-                  ) : (
-                    <FileText size={15} strokeWidth={2} />
-                  )}
-                  {t("ttv.build")}
-                </Button>
-              )
+              <Button disabled={!canBuild || busy !== null} onClick={() => run("build")}>
+                {busy === "build" ? (
+                  <Loader2 size={15} strokeWidth={2} className="animate-spin" />
+                ) : session.projectId ? (
+                  <RefreshCw size={15} strokeWidth={2} />
+                ) : (
+                  <FileText size={15} strokeWidth={2} />
+                )}
+                {session.projectId ? "Dựng lại video" : t("ttv.build")}
+              </Button>
             }
           >
             {child.error && <ErrorBanner message={child.error} />}

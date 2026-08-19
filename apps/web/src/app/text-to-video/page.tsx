@@ -59,8 +59,9 @@ function TtvStatusBadge({ status }: { status: TextToVideoStatus }) {
 
 /** Một dòng mô tả nguồn của phiên: link rút gọn hoặc mấy chữ đầu văn bản. */
 function sourceLine(s: TextToVideoMeta): string {
-  if (s.source.kind === "url") return s.source.url;
-  const text = s.source.text.trim().replace(/\s+/g, " ");
+  if (!s || !s.source) return "";
+  if (s.source.kind === "url") return s.source.url || "";
+  const text = (s.source.text || "").trim().replace(/\s+/g, " ");
   return text.length > 90 ? `${text.slice(0, 90)}…` : text;
 }
 
@@ -352,19 +353,19 @@ export default function TextToVideoPage() {
                       <TtvStatusBadge status={s.status} />
                     </td>
                     <td className="hidden text-[var(--text-muted)] xl:table-cell">
-                      {s.source.kind === "url"
+                      {s.source?.kind === "url"
                         ? t("ttv.source.url")
                         : t("ttv.source.text")}
                     </td>
                     <td className="text-[var(--text-muted)]">
-                      {s.script.length > 0
+                      {s.script && s.script.length > 0
                         ? `${tf("ttv.chunk-count", { n: s.script.length })} · ~${clock(
                             estimateScriptSeconds(s.script)
                           )}`
                         : "-"}
                     </td>
                     <td className="hidden text-[var(--text-muted)] xl:table-cell">
-                      {s.voice.name || "-"}
+                      {s.voice?.name || "-"}
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {s.projectId ? (

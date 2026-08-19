@@ -2798,21 +2798,24 @@ export const TEXT_TO_VIDEO_DEFAULT_OUTPUT: TextToVideoOutput = {
 export const TTS_CHARS_PER_SEC = 15;
 
 /** Ước lượng thời lượng một đoạn kịch bản (giây) - ưu tiên thời lượng thật. */
-export function estimateChunkSeconds(chunk: ScriptChunk): number {
+export function estimateChunkSeconds(chunk?: ScriptChunk | null): number {
+  if (!chunk) return 0;
   if (typeof chunk.durationSec === "number" && chunk.durationSec > 0) {
     return chunk.durationSec;
   }
-  return chunk.text.trim().length / TTS_CHARS_PER_SEC;
+  return (chunk.text ?? "").trim().length / TTS_CHARS_PER_SEC;
 }
 
 /** Ước lượng thời lượng cả kịch bản (giây). */
-export function estimateScriptSeconds(chunks: ScriptChunk[]): number {
+export function estimateScriptSeconds(chunks?: ScriptChunk[] | null): number {
+  if (!Array.isArray(chunks)) return 0;
   return chunks.reduce((sum, c) => sum + estimateChunkSeconds(c), 0);
 }
 
 /** Tổng số ký tự của kịch bản - cơ sở tính ước lượng ở trên. */
-export function scriptChars(chunks: ScriptChunk[]): number {
-  return chunks.reduce((sum, c) => sum + c.text.trim().length, 0);
+export function scriptChars(chunks?: ScriptChunk[] | null): number {
+  if (!Array.isArray(chunks)) return 0;
+  return chunks.reduce((sum, c) => sum + (c.text ?? "").trim().length, 0);
 }
 
 /** Job dựng video từ bài viết: `type` = "text-to-video", `projectId` = id phiên. */
