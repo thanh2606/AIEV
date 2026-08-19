@@ -7,6 +7,7 @@ use App\Models\AievJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -59,7 +60,8 @@ class AutoCutController extends Controller
             try {
                 $meta = json_decode(file_get_contents($metaFile), true);
                 if ($meta) $sessions[] = $meta;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                Log::warning("AutoCutController read meta error for {$name}: {$e->getMessage()}", ['exception' => $e]);
                 continue;
             }
         }

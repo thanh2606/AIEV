@@ -8,6 +8,7 @@ use App\Models\ChatMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Chat với Claude Agent.
@@ -148,8 +149,8 @@ class ChatController extends Controller
             Http::timeout(5)->post(config('aiev.node_worker_url') . '/internal/agent/interrupt', [
                 'sessionId' => $sessionId,
             ]);
-        } catch (\Throwable) {
-            // Worker có thể đã kết thúc
+        } catch (\Throwable $e) {
+            Log::warning("ChatController interrupt error for session {$sessionId}: {$e->getMessage()}", ['exception' => $e]);
         }
 
         $session->update(['status' => 'interrupted']);

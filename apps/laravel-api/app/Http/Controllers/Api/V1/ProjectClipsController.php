@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Cắt short & tái chế tỉ lệ khung hình.
@@ -20,6 +22,8 @@ class ProjectClipsController extends Controller
 
         $data = json_decode(file_get_contents($file), true) ?: [];
         return response()->json($data);
+    }
+
     public function suggest(Request $request, string $id): JsonResponse
     {
         $nodeWorker = config('aiev.node_worker_url');
@@ -57,13 +61,16 @@ class ProjectClipsController extends Controller
                 file_put_contents("{$projectDir}/clips.json", json_encode($newMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                 return response()->json($newMeta);
             }
+            $err = $res->json('error');
+            $msg = is_string($err) ? $err : ($res->json('error.message') ?? $res->json('message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')');
             return response()->json([
                 'error' => [
                     'code' => 'AI_ERROR',
-                    'message' => $res->json('error.message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')'
+                    'message' => $msg
                 ]
             ], 502);
         } catch (\Throwable $e) {
+            Log::error("ProjectClipsController suggest error for {$id}: {$e->getMessage()}", ['exception' => $e]);
             return response()->json([
                 'error' => [
                     'code' => 'HTTP_ERROR',

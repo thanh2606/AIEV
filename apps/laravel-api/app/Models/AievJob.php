@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 /**
  * AIEV Render Job - quản lý hàng đợi render video.
@@ -15,6 +16,15 @@ class AievJob extends Model
 
     public $incrementing = false;
     protected $keyType = 'string';
+
+    protected static function booted(): void
+    {
+        static::creating(function (AievJob $job) {
+            if (empty($job->id)) {
+                $job->id = (string) Str::uuid();
+            }
+        });
+    }
 
     public const ALLOWED_TYPES = [
         'scene-draft',

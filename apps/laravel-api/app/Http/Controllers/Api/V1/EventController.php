@@ -16,7 +16,9 @@ class EventController extends Controller
         return new StreamedResponse(function () {
             echo "retry: 5000\n\n";
             echo "event: ping\ndata: {\"time\":\"" . now()->toISOString() . "\"}\n\n";
-            ob_flush();
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
             flush();
         }, 200, [
             'Content-Type' => 'text/event-stream',

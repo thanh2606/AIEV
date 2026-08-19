@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use App\Models\TtsVoice;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 class SyncVoices extends Command
 {
@@ -67,6 +68,7 @@ class SyncVoices extends Command
                 $this->error('voices.json not found!');
             }
         } catch (\Exception $e) {
+            Log::error('SyncVoices: Failed to fetch ViENEU presets: ' . $e->getMessage(), ['exception' => $e]);
             $this->error('Failed to fetch ViENEU presets: ' . $e->getMessage());
         }
 
@@ -99,7 +101,7 @@ class SyncVoices extends Command
                             $clonedCount++;
                         }
                     } catch (\Exception $e) {
-                        // skip
+                        Log::warning("SyncVoices: cloned voice meta error for {$dir}: {$e->getMessage()}", ['exception' => $e]);
                     }
                 }
             }

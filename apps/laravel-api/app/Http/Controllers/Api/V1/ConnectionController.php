@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Quản lý kết nối AI - xem trạng thái + nhập/xóa API key.
@@ -222,6 +223,7 @@ class ConnectionController extends Controller
             }
             return response()->json(['ok' => false, 'message' => "Google từ chối (HTTP {$r->status()})."]);
         } catch (\Throwable $e) {
+            Log::warning("ConnectionController testGemini error: {$e->getMessage()}", ['exception' => $e]);
             return response()->json(['ok' => false, 'message' => 'Lỗi kết nối: ' . $e->getMessage()]);
         }
     }
@@ -244,6 +246,7 @@ class ConnectionController extends Controller
                 }
                 return response()->json(['ok' => false, 'message' => "Trả lỗi HTTP {$r->status()}."]);
             } catch (\Throwable $e) {
+                Log::warning("ConnectionController testClaude error: {$e->getMessage()}", ['exception' => $e]);
                 return response()->json(['ok' => false, 'message' => "Không kết nối được: {$e->getMessage()}"]);
             }
         }
@@ -262,6 +265,7 @@ class ConnectionController extends Controller
                 ? response()->json(['ok' => true, 'message' => 'API key OpenAI hoạt động.'])
                 : response()->json(['ok' => false, 'message' => "Key không hợp lệ (HTTP {$r->status()})."]);
         } catch (\Throwable $e) {
+            Log::warning("ConnectionController testOpenai error: {$e->getMessage()}", ['exception' => $e]);
             return response()->json(['ok' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -277,6 +281,7 @@ class ConnectionController extends Controller
                 ? response()->json(['ok' => true, 'message' => 'Key Soniox hoạt động.'])
                 : response()->json(['ok' => false, 'message' => "Soniox từ chối (HTTP {$r->status()})."]);
         } catch (\Throwable $e) {
+            Log::warning("ConnectionController testSoniox error: {$e->getMessage()}", ['exception' => $e]);
             return response()->json(['ok' => false, 'message' => $e->getMessage()]);
         }
     }

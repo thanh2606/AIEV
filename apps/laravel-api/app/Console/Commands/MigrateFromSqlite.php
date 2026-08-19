@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Migrate dữ liệu từ SQLite cũ (apps/server/data/app.sqlite) sang database Laravel.
@@ -30,6 +31,7 @@ class MigrateFromSqlite extends Command
             $sqlite = new \PDO("sqlite:{$sqlitePath}");
             $sqlite->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         } catch (\PDOException $e) {
+            Log::error("MigrateFromSqlite PDO failed: {$e->getMessage()}", ['exception' => $e]);
             $this->error("Không mở được SQLite: {$e->getMessage()}");
             return 1;
         }
@@ -100,6 +102,7 @@ class MigrateFromSqlite extends Command
         try {
             $rows = $sqlite->query("SELECT * FROM {$srcTable}")->fetchAll(\PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {
+            Log::warning("MigrateFromSqlite fetch failed for {$srcTable}: {$e->getMessage()}", ['exception' => $e]);
             $this->warn("  ⚠ Bỏ qua {$srcTable}: {$e->getMessage()}");
             return;
         }
@@ -139,6 +142,7 @@ class MigrateFromSqlite extends Command
                     if (str_contains($e->getMessage(), 'Duplicate') || str_contains($e->getMessage(), 'UNIQUE')) {
                         $skipped++;
                     } else {
+                        Log::warning("MigrateFromSqlite row insert error for {$destTable}: {$e->getMessage()}", ['exception' => $e]);
                         $this->warn("  ⚠ Row error: {$e->getMessage()}");
                         $skipped++;
                     }

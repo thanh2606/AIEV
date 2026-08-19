@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Doctor environment diagnostics & installation.
@@ -22,7 +23,9 @@ class DoctorController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("DoctorController index error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         // Fallback doctor report
         return response()->json([
@@ -59,7 +62,9 @@ class DoctorController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("DoctorController fix error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         return response()->json([
             'ok' => true,

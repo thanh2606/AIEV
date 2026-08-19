@@ -11,7 +11,8 @@
     "engines/remotion"
   ],
   "scripts": {
-    "dev": "concurrently -n laravel,worker,web,horizon,reverb -c yellow,magenta,cyan,blue,green \"npm run dev:laravel\" \"npm run dev -w apps/node-worker\" \"npm run dev -w apps/web\" \"npm run dev:horizon\" \"npm run dev:reverb\"",
+    "dev": "npm run dev -w apps/web",
+    "dev:all": "concurrently -n laravel,worker,web,horizon,reverb -c yellow,magenta,cyan,blue,green \"npm run dev:laravel\" \"npm run dev -w apps/node-worker\" \"npm run dev -w apps/web\" \"npm run dev:horizon\" \"npm run dev:reverb\"",
     "dev:laravel": "cd apps/laravel-api && php artisan serve --port=8000",
     "dev:horizon": "cd apps/laravel-api && php artisan horizon",
     "dev:reverb": "cd apps/laravel-api && php artisan reverb:start",

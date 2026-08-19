@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Xuất phụ đề .srt/.vtt + gói metadata đăng bài.
@@ -25,6 +27,8 @@ class ProjectPublishController extends Controller
 
         $data = json_decode(file_get_contents($file), true) ?: [];
         return response()->json($data);
+    }
+
     public function store(Request $request, string $id): JsonResponse
     {
         $nodeWorker = config('aiev.node_worker_url');
@@ -69,13 +73,16 @@ class ProjectPublishController extends Controller
                 file_put_contents("{$projectDir}/publish.json", json_encode($newMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                 return response()->json(['pack' => $newMeta]);
             }
+            $err = $res->json('error');
+            $msg = is_string($err) ? $err : ($res->json('error.message') ?? $res->json('message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')');
             return response()->json([
                 'error' => [
                     'code' => 'AI_ERROR',
-                    'message' => $res->json('error.message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')'
+                    'message' => $msg
                 ]
             ], 502);
         } catch (\Throwable $e) {
+            Log::error("ProjectPublishController store error for {$id}: {$e->getMessage()}", ['exception' => $e]);
             return response()->json([
                 'error' => [
                     'code' => 'HTTP_ERROR',

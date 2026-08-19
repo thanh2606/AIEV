@@ -51,6 +51,7 @@ services:
       DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      NODE_WORKER_URL: http://node-worker:6870
     volumes:
       - ./:/app
     networks:
@@ -71,6 +72,7 @@ services:
       DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      NODE_WORKER_URL: http://node-worker:6870
     volumes:
       - ./:/app
     networks:
@@ -90,6 +92,7 @@ services:
       DB_PORT: 3306
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      NODE_WORKER_URL: http://node-worker:6870
     volumes:
       - ./:/app
     networks:
@@ -104,6 +107,8 @@ services:
     command: npm run dev -w apps/node-worker
     ports:
       - '${FORWARD_NODE_WORKER_PORT:-6870}:6870'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./:/app
       # Mount thư mục .claude của host vào để chia sẻ Auth Token của Claude CLI

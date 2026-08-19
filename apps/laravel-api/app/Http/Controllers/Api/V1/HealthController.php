@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Health check endpoint - public, không cần auth.
@@ -36,7 +37,8 @@ class HealthController extends Controller
     {
         try {
             return Redis::ping() === true || Redis::ping() === 'PONG';
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning("HealthCheck Redis failed: {$e->getMessage()}", ['exception' => $e]);
             return false;
         }
     }
@@ -47,7 +49,8 @@ class HealthController extends Controller
             $response = Http::timeout(3)
                 ->get(config('aiev.node_worker_url') . '/health');
             return $response->ok();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning("HealthCheck NodeWorker failed: {$e->getMessage()}", ['exception' => $e]);
             return false;
         }
     }

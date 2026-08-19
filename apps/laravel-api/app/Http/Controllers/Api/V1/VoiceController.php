@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Thư viện giọng đọc nhân bản (VieNeu).
@@ -22,7 +23,9 @@ class VoiceController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("VoiceController index error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         return response()->json([]);
     }
@@ -53,6 +56,7 @@ class VoiceController extends Controller
 
             return response()->json($response->json(), $response->status());
         } catch (\Throwable $e) {
+            Log::error("VoiceController store error: {$e->getMessage()}", ['exception' => $e]);
             @unlink($tempPath);
             return response()->json(['error' => ['message' => 'Lỗi kết nối node-worker: ' . $e->getMessage()]], 500);
         }

@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessRenderJob;
 use App\Models\AievJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -35,12 +37,13 @@ class TextToVideoController extends Controller
             try {
                 $meta = json_decode(file_get_contents($metaFile), true);
                 if ($meta) $items[] = $meta;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                Log::warning("TextToVideoController read meta error for {$name}: {$e->getMessage()}", ['exception' => $e]);
                 continue;
             }
         }
 
-        usort($items, fn ($a, $b) => ($b['updatedAt'] ?? '') <=> ($a['updatedAt'] ?? ''));
+        usort($items, fn($a, $b) => ($b['updatedAt'] ?? '') <=> ($a['updatedAt'] ?? ''));
 
         return response()->json($items);
     }
@@ -214,7 +217,9 @@ class TextToVideoController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("TextToVideoController extract error for {$id}: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         // Fallback stub response if worker is offline
         $meta['status'] = 'draft';
@@ -239,13 +244,18 @@ class TextToVideoController extends Controller
                 $this->writeMeta($id, $newMeta);
                 return response()->json($newMeta);
             }
+            Log::error("TextToVideoController script failed (HTTP {$res->status()}): " . $res->body());
+            $err = $res->json('error');
+            $msg = is_string($err) ? $err : ($res->json('error.message') ?? $res->json('message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')');
             return response()->json([
                 'error' => [
                     'code' => 'AI_ERROR',
-                    'message' => $res->json('error.message') ?? 'Lỗi kết nối AI (HTTP ' . $res->status() . ')'
+                    'message' => $msg
                 ]
             ], 502);
         } catch (\Throwable $e) {
+            Log::error('Node Worker error: ' . $e->getMessage(), ['exception' => $e]);
+
             return response()->json([
                 'error' => [
                     'code' => 'HTTP_ERROR',
@@ -271,6 +281,8 @@ class TextToVideoController extends Controller
             'progress' => 0,
             'step' => 'Dựng video...',
         ]);
+
+        ProcessRenderJob::dispatch($job->id);
 
         return response()->json(['jobId' => $job->id], 202);
     }

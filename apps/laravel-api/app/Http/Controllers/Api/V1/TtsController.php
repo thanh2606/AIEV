@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Text-to-speech synthesis & Voice endpoints.
@@ -19,22 +20,36 @@ class TtsController extends Controller
         $geminiKey = config('aiev.gemini_api_key');
         $hasGemini = !empty($geminiKey);
 
-        return response()->json([
-            [
-                'engine' => 'gemini',
-                'available' => $hasGemini,
-                'canClone' => false,
-                'reason' => $hasGemini ? null : 'NO_GEMINI_KEY',
-                'detail' => $hasGemini ? 'GEMINI_API_KEY đã được cấu hình' : 'Chưa có GEMINI_API_KEY trong .env',
-            ],
-            [
-                'engine' => 'vieneu',
-                'available' => true,
-                'canClone' => true,
-                'reason' => null,
-                'detail' => 'ViENEU Local Engine',
-            ],
-        ]);
+        $geminiStatus = [
+            'engine' => 'gemini',
+            'available' => $hasGemini,
+            'canClone' => false,
+            'reason' => $hasGemini ? null : 'NO_GEMINI_KEY',
+            'detail' => $hasGemini ? 'GEMINI_API_KEY đã được cấu hình' : 'Chưa có GEMINI_API_KEY trong .env',
+        ];
+
+        $vieneuStatus = [
+            'engine' => 'vieneu',
+            'available' => true,
+            'canClone' => true,
+            'reason' => null,
+            'detail' => 'ViENEU Local Engine',
+        ];
+
+        $nodeWorker = $this->getNodeWorkerUrl();
+        try {
+            $res = Http::timeout(5)->get("{$nodeWorker}/internal/tts/engines");
+            if ($res->successful()) {
+                $st = $res->json();
+                if (is_array($st)) {
+                    $vieneuStatus = array_merge(['engine' => 'vieneu'], $st);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning("TtsController engines check error: {$e->getMessage()}", ['exception' => $e]);
+        }
+
+        return response()->json([$geminiStatus, $vieneuStatus]);
     }
 
     /** GET /api/v1/tts/models */
@@ -51,28 +66,71 @@ class TtsController extends Controller
     public function voices(Request $request): JsonResponse
     {
         $want = $request->query('engine');
-        $query = \App\Models\TtsVoice::query();
-        
-        if ($want) {
-            $query->where('engine', $want);
-        }
-        
-        $voices = $query->get()->map(function ($v) {
-            return [
-                'engine' => $v->engine,
-                'name' => $v->name,
-                'title' => $v->title,
-                'label' => $v->label,
-                'gender' => $v->gender,
-                'f0' => $v->f0,
-                'kind' => $v->kind,
-                'region' => $v->region,
-                'timbreKey' => $v->timbre_key,
-                'note' => $v->note ?? '',
-            ];
-        });
+        $voices = collect();
 
-        return response()->json($voices);
+        if (!$want || $want === 'gemini') {
+            $geminiVoices = \App\Models\TtsVoice::where('engine', 'gemini')->get()->map(function ($v) {
+                return [
+                    'engine' => $v->engine,
+                    'name' => $v->name,
+                    'title' => $v->title,
+                    'label' => $v->label,
+                    'gender' => $v->gender,
+                    'f0' => $v->f0,
+                    'kind' => $v->kind,
+                    'region' => $v->region,
+                    'timbreKey' => $v->timbre_key,
+                    'note' => $v->note ?? '',
+                ];
+            });
+            $voices = $voices->merge($geminiVoices);
+        }
+
+        if (!$want || $want === 'vieneu') {
+            $nodeWorker = $this->getNodeWorkerUrl();
+            $nodeVoices = [];
+            try {
+                $res = Http::timeout(10)->get("{$nodeWorker}/internal/tts/voices");
+                if ($res->successful()) {
+                    $nodeVoices = $res->json();
+                }
+            } catch (\Throwable $e) {
+                Log::warning("TtsController node-worker voices fetch error: {$e->getMessage()}", ['exception' => $e]);
+            }
+
+            if (!empty($nodeVoices) && is_array($nodeVoices)) {
+                $voices = $voices->merge($nodeVoices);
+            } else {
+                $dbVieneu = \App\Models\TtsVoice::where('engine', 'vieneu')->get()->map(function ($v) {
+                    return [
+                        'engine' => $v->engine,
+                        'name' => $v->name,
+                        'title' => $v->title,
+                        'label' => $v->label,
+                        'gender' => $v->gender,
+                        'f0' => $v->f0,
+                        'kind' => $v->kind,
+                        'region' => $v->region,
+                        'timbreKey' => $v->timbre_key,
+                        'note' => $v->note ?? '',
+                    ];
+                });
+                $voices = $voices->merge($dbVieneu);
+            }
+        }
+
+        return response()->json($voices->values());
+    }
+
+    private function getNodeWorkerUrl(): string
+    {
+        $url = config('aiev.node_worker_url', 'http://localhost:6870');
+        if (str_contains($url, 'localhost')) {
+            if (gethostbyname('node-worker') !== 'node-worker') {
+                return str_replace('localhost', 'node-worker', $url);
+            }
+        }
+        return $url;
     }
 
     /** GET /api/v1/tts/languages */
@@ -101,7 +159,7 @@ class TtsController extends Controller
 
         if ($engine === 'vieneu') {
             // Proxy to node-worker
-            $nodeWorker = config('aiev.node_worker_url');
+            $nodeWorker = $this->getNodeWorkerUrl();
             try {
                 $res = Http::withBody($request->getContent(), 'application/json')
                     ->post("{$nodeWorker}/internal/tts/preview");
@@ -116,6 +174,7 @@ class TtsController extends Controller
                     }
                 }
             } catch (\Throwable $e) {
+                Log::error("TtsController preview vieneu error: {$e->getMessage()}", ['exception' => $e]);
                 return response()->json(['error' => ['code' => 'NODE_WORKER_ERROR', 'message' => 'Lỗi kết nối node-worker: ' . $e->getMessage()]], 500);
             }
         } else {
@@ -178,6 +237,7 @@ class TtsController extends Controller
                 
                 return response()->json(['error' => ['code' => 'GEMINI_TTS_FAILED', 'message' => 'Gemini API lỗi: ' . $res->body()]], 502);
             } catch (\Throwable $e) {
+                Log::error("TtsController preview gemini error: {$e->getMessage()}", ['exception' => $e]);
                 return response()->json(['error' => ['code' => 'HTTP_ERROR', 'message' => 'Lỗi kết nối Gemini: ' . $e->getMessage()]], 500);
             }
         }

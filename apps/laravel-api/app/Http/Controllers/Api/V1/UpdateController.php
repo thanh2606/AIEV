@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Software update check & apply.
@@ -22,7 +23,9 @@ class UpdateController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("UpdateController check error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         return response()->json([
             'current' => '0.2.0',
@@ -47,7 +50,9 @@ class UpdateController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json());
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::warning("UpdateController log error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         return response()->json([
             'exists' => false,
@@ -66,7 +71,9 @@ class UpdateController extends Controller
             if ($res->successful()) {
                 return response()->json($res->json(), 202);
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            Log::error("UpdateController apply error: {$e->getMessage()}", ['exception' => $e]);
+        }
 
         return response()->json([
             'ok' => true,

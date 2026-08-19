@@ -25,7 +25,7 @@ return [
     | Node.js Worker Service
     |--------------------------------------------------------------------------
     */
-    'node_worker_url' => env('NODE_WORKER_URL', 'http://localhost:6870'),
+    'node_worker_url' => env('NODE_WORKER_URL', (gethostbyname('node-worker') !== 'node-worker' ? 'http://node-worker:6870' : 'http://localhost:6870')),
 
     /*
     |--------------------------------------------------------------------------

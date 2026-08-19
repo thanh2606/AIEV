@@ -23,7 +23,7 @@ import { planAgent } from "./planner.js";
 import { generateScript } from "./scripting.js";
 import { publishAgent, clipsSuggestAgent, autoCutPlanAgent, translateAgent } from "./agent.js";
 import { synthPreviewWav, applySpeedToWav } from "./tts.js";
-import { synthLocalPreviewWav } from "./ttsLocal.js";
+import { synthLocalPreviewWav, probeLocalEngine, listLocalVoices } from "./ttsLocal.js";
 import { normTtsSpeed } from "./textToVideoMeta.js";
 import { createClonedVoice, getClonedVoice, patchClonedVoice, removeClonedVoice, listClonedVoices } from "./voiceStore.js";
 import { previewTextFor } from "./ttsTypes.js";
@@ -238,6 +238,26 @@ app.post("/internal/tts/clone-preview", async (req, res) => {
   }
 });
 
+// 2.5 Dò trạng thái VieNeu Engine
+app.get("/internal/tts/engines", async (req, res) => {
+  try {
+    const status = await probeLocalEngine(req.query.refresh === "1");
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+// 2.6 Lấy danh sách giọng VieNeu (preset + cloned)
+app.get("/internal/tts/voices", async (req, res) => {
+  try {
+    const voices = await listLocalVoices();
+    res.json(voices);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // ==========================================
 // 3. NHÓM SPEECH-TO-TEXT (Transcribe)
 // ==========================================
@@ -257,6 +277,21 @@ app.post("/internal/transcribe", async (req, res) => {
       onLog: (line) => console.log(`[transcribe] ${line}`)
     });
 
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: errMsg });
+  }
+});
+
+import { buildTextToVideo } from "./jobs/textToVideo.js";
+
+// 3.2 Dựng Text To Video (TTS + Transcribe + Create Project)
+app.post("/internal/text-to-video/build", async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: "Missing id" });
+
+    const result = await buildTextToVideo(id);
     res.json(result);
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);

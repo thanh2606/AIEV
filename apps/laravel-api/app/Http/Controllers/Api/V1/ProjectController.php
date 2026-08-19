@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Quản lý video projects - đọc/ghi meta.json trên đĩa.
@@ -33,7 +34,8 @@ class ProjectController extends Controller
             try {
                 $meta = json_decode(file_get_contents($metaFile), true);
                 if ($meta) $projects[] = $meta;
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                Log::warning("ProjectController read meta error for {$name}: {$e->getMessage()}", ['exception' => $e]);
                 continue;
             }
         }

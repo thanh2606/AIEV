@@ -30,6 +30,16 @@ export const repoRoot = findRepoRoot();
 // Nạp .env từ repo root (ANTHROPIC_API_KEY, SERVER_PORT, ...)
 dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
 
+// Khi chạy trong Docker container, chuyển localhost/127.0.0.1 trong ANTHROPIC_BASE_URL thành host.docker.internal
+if (fs.existsSync("/.dockerenv")) {
+  if (process.env.ANTHROPIC_BASE_URL) {
+    process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
+  }
+  if (process.env.CLAUDE_BASE_URL) {
+    process.env.CLAUDE_BASE_URL = process.env.CLAUDE_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
+  }
+}
+
 // Đặt giới hạn token tối đa cho Claude Code CLI để tự động compact lịch sử trước khi chạm mốc 1M tokens
 if (!process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS) {
   process.env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = "200000";

@@ -33,6 +33,33 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->context(function () {
+            $request = request();
+            if (!$request) return [];
+
+            return [
+                'url' => $request->fullUrl(),
+                'method' => $request->method(),
+                'ip' => $request->ip(),
+                'input' => $request->except(['password', 'password_confirmation', 'token', 'apiKey', 'api_key']),
+            ];
+        });
+
+        $exceptions->reportable(function (\Throwable $e) {
+            $request = request();
+            \Illuminate\Support\Facades\Log::error(sprintf(
+                '[%s] %s in %s:%d (URL: %s %s)',
+                get_class($e),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine(),
+                $request ? $request->method() : 'CLI',
+                $request ? $request->fullUrl() : 'N/A'
+            ), [
+                'exception' => $e,
+            ]);
+        });
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

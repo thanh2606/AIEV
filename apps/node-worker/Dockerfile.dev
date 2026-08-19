@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Xóa cache apt
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Cài đặt gói vieneu và faster-whisper cho giọng đọc offline tiếng Việt và bóc băng Whisper
+RUN pip install --break-system-packages vieneu faster-whisper
+
 # Chuyển thư mục làm việc (sẽ mount tới thư mục AIEV gốc)
 WORKDIR /app
 

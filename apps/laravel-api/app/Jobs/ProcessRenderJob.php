@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 /**
@@ -63,6 +64,10 @@ class ProcessRenderJob implements ShouldQueue
             $this->broadcastProgress($job, 100, 'Hoàn thành');
 
         } catch (\Throwable $e) {
+            Log::error("ProcessRenderJob [{$this->jobId}] failed: {$e->getMessage()}", [
+                'job_id' => $this->jobId,
+                'exception' => $e,
+            ]);
             $job->update([
                 'status' => 'failed',
                 'step' => mb_substr($e->getMessage(), 0, 200),
@@ -168,26 +173,18 @@ class ProcessRenderJob implements ShouldQueue
             $metaFile = config('aiev.paths.text_to_video') . "/{$job->project_id}/meta.json";
             file_put_contents($metaFile, json_encode($newMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         } else {
-            throw new \RuntimeException("text-to-video scene {$job->scene_id} not mapped");
-        }
-    }
+            $this->updateProgress($job, 5, 'Đang đọc kịch bản & tạo giọng đọc TTS (Node Worker)...');
 
-    private function translateVideo(AievJob $job): void
-    {
-        if ($job->scene_id === 'transcribe') {
-            $this->updateProgress($job, 10, 'Đang bóc băng âm thanh (Node Worker)...');
-            $dir = config('aiev.paths.translate_video') . '/' . $job->project_id;
-            
             $response = \Illuminate\Support\Facades\Http::timeout(1800)
-                ->post(config('aiev.node_worker_url') . '/internal/transcribe', [
-                    'videoAbs' => "{$dir}/source.mp4",
-                    'outJsonAbs' => "{$dir}/transcript.json",
-                    'language' => 'auto'
+                ->post(config('aiev.node_worker_url') . '/internal/text-to-video/build', [
+                    'id' => $job->project_id,
                 ]);
 
-            if (!$response->ok()) throw new \RuntimeException("Node Worker lỗi: HTTP {$response->status()}");
-        } else {
-            throw new \RuntimeException("translate-video scene {$job->scene_id} not mapped");
+            if (!$response->ok()) {
+                $errData = $response->json('error');
+                $errMsg = is_array($errData) ? json_encode($errData, JSON_UNESCAPED_UNICODE) : ($errData ?? "HTTP {$response->status()}");
+                throw new \RuntimeException("Node Worker text-to-video build lỗi: " . $errMsg);
+            }
         }
     }
 
