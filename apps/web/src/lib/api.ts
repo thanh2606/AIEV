@@ -1,6 +1,6 @@
 /**
  * Typed fetch wrapper theo hợp đồng docs/API.md.
- * Web (6868) rewrites /api/* và /media/* sang backend (6869).
+ * Web (6868) rewrites /api/* và /media/* sang backend (8000, Laravel).
  */
 
 // ============ Types ============
@@ -726,9 +726,9 @@ function isLocalNetworkHost(host: string): boolean {
  * content - nên đi same-origin qua proxy /api của Next (proxyTimeout 10 phút).
  */
 export function serverOrigin(): string {
-  if (typeof window === "undefined") return "http://localhost:6869";
+  if (typeof window === "undefined") return "http://localhost:8000";
   if (!isLocalNetworkHost(window.location.hostname)) return window.location.origin;
-  const port = process.env.NEXT_PUBLIC_SERVER_PORT || "6869";
+  const port = process.env.NEXT_PUBLIC_SERVER_PORT || "8000";
   return `http://${window.location.hostname}:${port}`;
 }
 
@@ -755,7 +755,7 @@ export class ApiError extends Error {
 // ============ Token truy cập backend ============
 
 /**
- * Backend (6869) mở cho cả LAN để điện thoại upload được, nên nó đòi token cho
+ * Backend (8000) mở cho cả LAN để điện thoại upload được, nên nó đòi token cho
  * MỌI request không đến trực tiếp từ chính máy chủ. Dashboard lấy token thế này:
  *
  * 1. `?t=<token>` trên URL (mở dashboard từ xa qua Cloudflare Tunnel) → lưu lại.
@@ -863,7 +863,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiError(
       "network",
-      "Không kết nối được backend (port 6869). Kiểm tra server đã chạy chưa.",
+      "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
       0
     );
   }
@@ -1292,7 +1292,7 @@ export async function generateSkill(
   } catch {
     throw new SkillGenerateError(
       "network",
-      "Không kết nối được backend (port 6869). Kiểm tra server đã chạy chưa.",
+      "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
       0,
       null
     );
@@ -3074,7 +3074,7 @@ export async function previewTtsVoice(input: {
   } catch {
     throw new ApiError(
       "network",
-      "Không kết nối được backend (port 6869). Kiểm tra server đã chạy chưa.",
+      "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
       0
     );
   }
@@ -3128,7 +3128,7 @@ export async function previewClonedVoice(input: {
   } catch {
     throw new ApiError(
       "network",
-      "Không kết nối được backend (port 6869). Kiểm tra server đã chạy chưa.",
+      "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
       0
     );
   }
@@ -3602,7 +3602,7 @@ export async function dubPreviewTranslateVideo(
   } catch {
     throw new ApiError(
       "network",
-      "Không kết nối được backend (port 6869). Kiểm tra server đã chạy chưa.",
+      "Không kết nối được backend. Kiểm tra server đã chạy chưa.",
       0
     );
   }

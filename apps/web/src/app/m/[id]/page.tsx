@@ -7,10 +7,10 @@
  * Tối giản cho màn dọc, không Shell/sidebar (Shell tự bypass /m/*).
  * Endpoint upload chọn qua uploadOrigin() (api.ts):
  * - Cùng WiFi/LAN (hostname là localhost/IP private/Tailscale 100.x): gọi
- *   THẲNG backend 6869 - né proxy /api của Next vì request dài dính
+ *   THẲNG backend 8000 - né proxy /api của Next vì request dài dính
  *   buffering + timeout, file video lớn hay kẹt giữa chừng. Backend đã mở
- *   CORS cho origin http://<ip-LAN>:6868 và start.ps1 mở firewall port 6869.
- * - Qua domain tunnel (vd Cloudflare Tunnel → localhost:6868): cổng 6869
+ *   CORS cho origin http://<ip-LAN>:6868 và start.ps1 mở firewall port 8000.
+ * - Qua domain tunnel (vd Cloudflare Tunnel → localhost:6868): cổng 8000
  *   không tồn tại trên domain → upload same-origin qua proxy /api của Next
  *   (proxyTimeout 10 phút, đủ cho file lớn).
  */

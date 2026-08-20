@@ -49,17 +49,26 @@ const BUILD_FILE = join(STATE_DIR, "build.json");
  * quan gì tới bản build.
  */
 const WATCH_DIRS = [
-  "apps/server/src",
+  "apps/node-worker/src",
   "apps/web/src",
   "apps/web/public",
   "engines/remotion/src",
 ];
 
+// Laravel chạy bằng PHP (không cần build) nhưng source PHP, routes và
+// composer.json đổi thì vẫn phải báo để start chạy lại migrate + warm cache.
+const WATCH_LARAVEL_DIRS = [
+  "apps/laravel-api/app",
+  "apps/laravel-api/routes",
+  "apps/laravel-api/config",
+  "apps/laravel-api/database",
+];
+
 const WATCH_FILES = [
   "package.json",
   "package-lock.json",
-  "apps/server/package.json",
-  "apps/server/tsconfig.json",
+  "apps/node-worker/package.json",
+  "apps/node-worker/tsconfig.json",
   "apps/web/package.json",
   "apps/web/tsconfig.json",
   "apps/web/next.config.ts",
@@ -67,6 +76,8 @@ const WATCH_FILES = [
   "apps/web/next.config.mjs",
   "apps/web/postcss.config.mjs",
   "apps/web/postcss.config.js",
+  "apps/laravel-api/composer.json",
+  "apps/laravel-api/composer.lock",
 ];
 
 /** Bỏ qua rác không ảnh hưởng bản build */
@@ -95,6 +106,7 @@ function walk(dir, out) {
 export function computeStamp() {
   const files = [];
   for (const d of WATCH_DIRS) walk(join(ROOT, d), files);
+  for (const d of WATCH_LARAVEL_DIRS) walk(join(ROOT, d), files);
   for (const f of WATCH_FILES) {
     const p = join(ROOT, f);
     if (existsSync(p)) files.push(p);
