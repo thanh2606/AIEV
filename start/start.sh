@@ -112,7 +112,7 @@ if $WEB_UP || $API_UP; then
   fi
 
   if [ -z "$RUN_STAMP" ]; then
-    step "Cổng 6868/6869 đang bị tiến trình khác chiếm (vd 'npm run dev') - dừng để chạy lại cho đúng..."
+    step "Cổng 6868/8000 đang bị tiến trình khác chiếm (vd 'npm run dev') - dừng để chạy lại cho đúng..."
   elif [ "$RUN_STAMP" != "$SRC_STAMP" ]; then
     step "Code đã đổi so với bản đang chạy - dừng để build lại..."
   else
@@ -138,9 +138,9 @@ fi
 STAMP_OK=true
 node "$ROOT/start/build-stamp.mjs" --check || STAMP_OK=false
 
-if ! $STAMP_OK || [ ! -d "$ROOT/apps/server/dist" ]; then
-  step "Build backend..."
-  npm run build -w apps/server || { err "Build server thất bại."; exit 1; }
+if ! $STAMP_OK || [ ! -d "$ROOT/apps/node-worker/dist" ]; then
+  step "Build worker (node-worker)..."
+  npm run build -w apps/node-worker || { err "Build node-worker thất bại."; exit 1; }
 fi
 if ! $STAMP_OK || [ ! -d "$ROOT/apps/web/.next" ]; then
   step "Build web UI (vài phút)..."
@@ -157,8 +157,13 @@ if [ ! -f "$ROOT/.env" ]; then
   printf '     \033[33mLưu ý: muốn dùng Chat AI, đăng nhập Claude Code trên máy này (lệnh `claude` -> /login) hoặc điền ANTHROPIC_API_KEY vào .env.\033[0m\n'
 fi
 
+# 5b. Bootstrap Laravel: kiểm tra PHP, migrate schema, warm cache.
+#     Laravel API (port 8000) là backend thật mà web proxy tới; node-worker cung
+#     cấp internal API (6870). Thiếu PHP thì chỉ nhắc, không chặn khởi động web.
+node "$ROOT/start/bootstrap-laravel.mjs" --fix || true
+
 # 6. Chạy nền, log ra file (macOS không có cửa sổ cmd riêng như Windows)
-step "Khởi động server (port 6869) + web (port 6868)..."
+step "Khởi động API (8000) + worker (6870) + web (6868)..."
 : > "$LOG_FILE"
 nohup npm run start >> "$LOG_FILE" 2>&1 &
 disown

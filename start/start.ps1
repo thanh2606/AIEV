@@ -65,7 +65,7 @@ $runFile  = Join-Path $stateDir "run.json"
 $srcStamp = (node (Join-Path $root "start\build-stamp.mjs") --print)
 
 function Stop-AievPorts {
-    foreach ($port in 6868, 6869) {
+    foreach ($port in 6868, 6870, 8000) {
         Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
             Select-Object -ExpandProperty OwningProcess -Unique |
             ForEach-Object { taskkill /pid $_ /t /f 2>$null | Out-Null }
@@ -97,7 +97,7 @@ if ($webUp -or $apiUp) {
         # Nháy đơn, KHÔNG backtick: trong chuỗi nháy kép của PowerShell backtick
         # là ký tự thoát, nên "`npm run dev`" biến `n thành ký tự xuống dòng và
         # câu thông báo bị cắt cụt ngay giữa chừng.
-        Write-Step "Cổng 6868/6869 đang bị tiến trình khác chiếm (vd 'npm run dev') - dừng để chạy lại cho đúng..."
+        Write-Step "Cổng 6868/8000 đang bị tiến trình khác chiếm (vd 'npm run dev') - dừng để chạy lại cho đúng..."
     } elseif ($runStamp -ne $srcStamp) {
         Write-Step "Code đã đổi so với bản đang chạy - dừng để build lại..."
     } else {
@@ -120,16 +120,16 @@ if (-not (Test-Path (Join-Path $root "node_modules"))) {
 #    sửa file giữa `src` và `.next`/`dist` như bản cũ. Lý do: `next start` ghi
 #    cache vào chính `.next` trong lúc chạy, nên `.next` luôn trông mới hơn
 #    `src` và thay đổi thật thì bị bỏ sót - sửa code xong build không chạy lại.
-$serverDist = Join-Path $root "apps\server\dist"
+$workerDist = Join-Path $root "apps\node-worker\dist"
 $webNext    = Join-Path $root "apps\web\.next"
 
 node (Join-Path $root "start\build-stamp.mjs") --check
 $stampOk = ($LASTEXITCODE -eq 0)
 
-if (-not $stampOk -or -not (Test-Path $serverDist)) {
-    Write-Step "Build backend..."
-    npm run build -w apps/server
-    if ($LASTEXITCODE -ne 0) { Write-Err "Build server thất bại."; exit 1 }
+if (-not $stampOk -or -not (Test-Path $workerDist)) {
+    Write-Step "Build worker (node-worker)..."
+    npm run build -w apps/node-worker
+    if ($LASTEXITCODE -ne 0) { Write-Err "Build node-worker thất bại."; exit 1 }
 }
 if (-not $stampOk -or -not (Test-Path $webNext)) {
     Write-Step "Build web UI (vài phút)..."
@@ -150,11 +150,16 @@ if (-not (Test-Path $envFile)) {
     Write-Host "     Lưu ý: muốn dùng tính năng Chat AI, đăng nhập Claude Code trên máy này (subscription OAuth - lệnh 'claude' -> /login) hoặc mở file .env và điền ANTHROPIC_API_KEY." -ForegroundColor Yellow
 }
 
-# 6. Chạy server + web trong cửa sổ riêng (giữ mở để xem log)
-Write-Step "Khởi động server (port 6869) + web (port 6868)..."
+# 5b. Bootstrap Laravel: kiểm tra PHP, migrate schema, warm cache.
+#     Laravel API (port 8000) là backend thật mà web proxy tới.
+node (Join-Path $root "start\bootstrap-laravel.mjs") --fix
+if ($LASTEXITCODE -ne 0) { Write-Step "Bỏ qua bootstrap Laravel (xem log trên)." }
+
+# 6. Chạy API + worker + web trong cửa sổ riêng (giữ mở để xem log)
+Write-Step "Khởi động API (8000) + worker (6870) + web (6868)..."
 Start-Process cmd -ArgumentList "/k", "title AI Edit Video - LOG && cd /d `"$root`" && npm run start" | Out-Null
 
-# 7. Mở firewall port 6868 (trang web) + 6869 (backend API - trang /m trên điện
+# 7. Mở firewall port 6868 (trang web) + 8000 (backend API - trang /m trên điện
 #    thoại upload file lớn gọi thẳng port này) cho tính năng "Kết nối điện thoại".
 #    Không có quyền admin thì lệnh fail im lặng - Windows sẽ tự hỏi Allow khi có
 #    kết nối đầu tiên.
@@ -165,9 +170,9 @@ try {
     }
 } catch { }
 try {
-    netsh advfirewall firewall show rule name="AIEV API 6869" 2>$null | Out-Null
+    netsh advfirewall firewall show rule name="AIEV API 8000" 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        netsh advfirewall firewall add rule name="AIEV API 6869" dir=in action=allow protocol=TCP localport=6869 2>$null | Out-Null
+        netsh advfirewall firewall add rule name="AIEV API 8000" dir=in action=allow protocol=TCP localport=8000 2>$null | Out-Null
     }
 } catch { }
 

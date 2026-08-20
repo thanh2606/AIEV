@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Events\RenderProgressUpdated;
 use App\Models\AievJob;
+use App\Services\AievEvents;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -306,6 +307,10 @@ class ProcessRenderJob implements ShouldQueue
 
         $process = Process::path($cwd)
             ->timeout($this->timeout)
+            // Worker chạy ngoài vỏ shell người dùng (Horizon/supervisor) không
+            // thừa kế PATH chứa node/npx/ffmpeg → bổ sung để không dính
+            // "npx: not found" khi gọi hyperframes/remotion.
+            ->env('PATH', $this->execPath())
             ->run($fullCommand);
 
         $this->appendLog($job, $process->output());
@@ -318,6 +323,21 @@ class ProcessRenderJob implements ShouldQueue
         }
     }
 
+    /**
+     * PATH cho `npx hyperframes` / `npx remotion` chạy trong Process::path.
+     * Dùng DIRECTORY_SEPARATOR, không hardcode "/" hay "\" (chạy được Windows + macOS/Linux).
+     */
+    private function execPath(): string
+    {
+        $root = (string) config('aiev.repo_root');
+        $sep = DIRECTORY_SEPARATOR;
+        $bonus = [
+            $root . $sep . 'node_modules' . $sep . '.bin',
+            $root . $sep . 'apps' . $sep . 'node-worker' . $sep . 'node_modules' . $sep . '.bin',
+        ];
+        return implode(PATH_SEPARATOR, array_filter([...$bonus, getenv('PATH')]));
+    }
+
 
 
     private function updateProgress(AievJob $job, int $progress, string $step): void
@@ -328,8 +348,8 @@ class ProcessRenderJob implements ShouldQueue
 
     private function appendLog(AievJob $job, string $line): void
     {
-        $job->log = ($job->log ?? '') . $line . "\n";
-        $job->update(['log' => $job->log]);
+        $job->update(['log' => $job->log . $line . "\n"]);
+        $this->emitLog($job, $line);
     }
 
     private function broadcastProgress(AievJob $job, int $progress, string $step): void
@@ -341,5 +361,15 @@ class ProcessRenderJob implements ShouldQueue
             $progress,
             $step,
         ));
+
+        // Song song với Reverb: ghi vào Redis Streams cho SSE /api/events
+        // (Web UI đang thật sự nghe kênh này qua useEvents.tsx).
+        AievEvents::publish('job', $job->toArray());
+    }
+
+    /** Phát một dòng log tới SSE (kênh joblog, khớp useEvents.tsx). */
+    private function emitLog(AievJob $job, string $line): void
+    {
+        AievEvents::publish('joblog', ['jobId' => $job->id, 'line' => $line]);
     }
 }
