@@ -210,8 +210,7 @@ class TextToVideoController extends Controller
             return response()->json(['error' => ['code' => 'NOT_FOUND', 'message' => "Phiên \"{$id}\" không tồn tại"]], 404);
         }
 
-        // Delegate to Node worker if available
-        $nodeWorker = config('aiev.node_worker_url');
+        $nodeWorker = $this->getNodeWorkerUrl();
         try {
             $res = Http::post("{$nodeWorker}/api/text-to-video/{$id}/extract");
             if ($res->successful()) {
@@ -235,7 +234,7 @@ class TextToVideoController extends Controller
             return response()->json(['error' => ['code' => 'NOT_FOUND', 'message' => "Phiên \"{$id}\" không tồn tại"]], 404);
         }
 
-        $nodeWorker = config('aiev.node_worker_url');
+        $nodeWorker = $this->getNodeWorkerUrl();
         try {
             $payload = array_merge($request->all(), ['id' => $id]);
             $res = Http::timeout(300)->post("{$nodeWorker}/internal/agent/script", $payload);
@@ -272,6 +271,10 @@ class TextToVideoController extends Controller
         if (!$meta) {
             return response()->json(['error' => ['code' => 'NOT_FOUND', 'message' => "Phiên \"{$id}\" không tồn tại"]], 404);
         }
+
+        $meta['status'] = 'building';
+        unset($meta['error']);
+        $this->writeMeta($id, $meta);
 
         $job = AievJob::create([
             'project_id' => $id,
@@ -326,5 +329,19 @@ class TextToVideoController extends Controller
             $n++;
         }
         return $id;
+    }
+
+    private function getNodeWorkerUrl(): string
+    {
+        $url = config('aiev.node_worker_url', 'http://localhost:6870');
+        $hasNodeWorkerHost = (gethostbyname('node-worker') !== 'node-worker');
+
+        if (str_contains($url, 'node-worker') && !$hasNodeWorkerHost) {
+            return str_replace('node-worker', 'host.docker.internal', $url);
+        }
+        if (str_contains($url, 'localhost') && (gethostbyname('host.docker.internal') !== 'host.docker.internal')) {
+            return str_replace('localhost', 'host.docker.internal', $url);
+        }
+        return $url;
     }
 }

@@ -28,15 +28,22 @@ function findRepoRoot(): string {
 export const repoRoot = findRepoRoot();
 
 // Nạp .env từ repo root (ANTHROPIC_API_KEY, SERVER_PORT, ...)
-dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
+dotenv.config({ path: path.join(repoRoot, ".env"), override: true });
 
-// Khi chạy trong Docker container, chuyển localhost/127.0.0.1 trong ANTHROPIC_BASE_URL thành host.docker.internal
+// Khi chạy trong Docker container (chỉ chuyển đổi nếu KHÔNG dùng network_mode: host)
 if (fs.existsSync("/.dockerenv")) {
-  if (process.env.ANTHROPIC_BASE_URL) {
-    process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
-  }
-  if (process.env.CLAUDE_BASE_URL) {
-    process.env.CLAUDE_BASE_URL = process.env.CLAUDE_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
+  const isHostNetwork =
+    process.env.DOCKER_NETWORK_MODE === "host" ||
+    process.env.NETWORK_MODE === "host" ||
+    !process.env.DOCKER_NETWORK_MODE; // Mặc định trong dự án AIEV toàn bộ container dùng network_mode: "host"
+
+  if (!isHostNetwork) {
+    if (process.env.ANTHROPIC_BASE_URL) {
+      process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
+    }
+    if (process.env.CLAUDE_BASE_URL) {
+      process.env.CLAUDE_BASE_URL = process.env.CLAUDE_BASE_URL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal");
+    }
   }
 }
 

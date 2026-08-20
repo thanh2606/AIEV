@@ -1,15 +1,21 @@
+import { repoRoot } from "./config.js";
 import fs from "node:fs";
 import path from "node:path";
 import express from "express";
-import dotenv from "dotenv";
 
-// Nạp .env từ repo root
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../");
-dotenv.config({ path: path.join(repoRoot, ".env") });
+import { logger } from "./logger.js";
 
 const PORT = Number(process.env.NODE_WORKER_PORT || 6870);
 const app = express();
 app.use(express.json({ limit: "50mb" }));
+
+// Log tất cả các request đến node-worker
+app.use((req, res, next) => {
+  if (req.path !== "/health") {
+    logger.info(`[HTTP] ${req.method} ${req.path}`, req.body && Object.keys(req.body).length > 0 ? req.body : undefined);
+  }
+  next();
+});
 
 // ---- Health ----
 app.get("/health", (_req, res) => {
@@ -299,8 +305,40 @@ app.post("/internal/text-to-video/build", async (req, res) => {
   }
 });
 
+import { renderScene } from "./jobs/sceneRender.js";
+import { assembleVideo } from "./jobs/assemble.js";
+
+// 3.3 Render Scene Hyperframes
+app.post("/internal/render/scene", async (req, res) => {
+  try {
+    const { projectId, sceneId, quality } = req.body;
+    if (!projectId) return res.status(400).json({ error: "Missing projectId" });
+
+    await renderScene({ projectId, sceneId, quality: quality || "standard" });
+    res.json({ success: true });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: errMsg });
+  }
+});
+
+// 3.4 Assemble Video Remotion
+app.post("/internal/assemble/video", async (req, res) => {
+  try {
+    const { projectId, quality } = req.body;
+    if (!projectId) return res.status(400).json({ error: "Missing projectId" });
+
+    const result = await assembleVideo({ projectId, quality: quality || "final" });
+    res.json(result);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: errMsg });
+  }
+});
+
 // ==========================================
 app.listen(PORT, () => {
-  console.log(`[node-worker] Service chạy tại http://localhost:${PORT}`);
-  console.log(`[node-worker] Repo root: ${repoRoot}`);
+  logger.info(`[node-worker] Service chạy tại http://localhost:${PORT}`);
+  logger.info(`[node-worker] Repo root: ${repoRoot}`);
+  logger.info(`[node-worker] File log ghi tại: ${logger.getLogPath()}`);
 });

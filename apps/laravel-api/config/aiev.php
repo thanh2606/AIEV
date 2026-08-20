@@ -1,23 +1,30 @@
 <?php
 
+$repoRoot = env('AIEV_REPO_ROOT', dirname(__DIR__, 3));
+if (file_exists('/.dockerenv') || is_dir('/app/apps/laravel-api')) {
+    if (str_starts_with($repoRoot, '/home/') || !is_dir($repoRoot)) {
+        $repoRoot = '/app';
+    }
+}
+
 return [
     /*
     |--------------------------------------------------------------------------
     | AIEV Paths - đường dẫn đến repo root và các thư mục dự án
     |--------------------------------------------------------------------------
     */
-    'repo_root' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)),
+    'repo_root' => $repoRoot,
 
     'paths' => [
-        'video_projects' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/video-projects',
-        'image_projects' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/image-projects',
-        'auto_cut' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/auto-cut',
-        'text_to_video' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/text-to-video',
-        'translate_video' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/translate-video',
-        'assets' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/assets',
-        'outputs' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/outputs',
-        'imports' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/imports',
-        'engines_remotion' => env('AIEV_REPO_ROOT', dirname(__DIR__, 3)) . '/engines/remotion',
+        'video_projects' => $repoRoot . '/video-projects',
+        'image_projects' => $repoRoot . '/image-projects',
+        'auto_cut' => $repoRoot . '/auto-cut',
+        'text_to_video' => $repoRoot . '/text-to-video',
+        'translate_video' => $repoRoot . '/translate-video',
+        'assets' => $repoRoot . '/assets',
+        'outputs' => $repoRoot . '/outputs',
+        'imports' => $repoRoot . '/imports',
+        'engines_remotion' => $repoRoot . '/engines/remotion',
     ],
 
     /*
@@ -25,7 +32,11 @@ return [
     | Node.js Worker Service
     |--------------------------------------------------------------------------
     */
-    'node_worker_url' => env('NODE_WORKER_URL', (gethostbyname('node-worker') !== 'node-worker' ? 'http://node-worker:6870' : 'http://localhost:6870')),
+    'node_worker_url' => env('NODE_WORKER_URL')
+        ? ((str_contains(env('NODE_WORKER_URL'), 'node-worker') && gethostbyname('node-worker') === 'node-worker')
+            ? str_replace('node-worker', 'localhost', env('NODE_WORKER_URL'))
+            : env('NODE_WORKER_URL'))
+        : (gethostbyname('node-worker') !== 'node-worker' ? 'http://node-worker:6870' : 'http://localhost:6870'),
 
     /*
     |--------------------------------------------------------------------------

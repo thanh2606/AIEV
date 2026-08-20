@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import { logger } from "./logger.js";
 
 // Constants from old server
 const TTS_CHARS_PER_SEC_ESTIMATE = 13.5;
@@ -70,8 +71,10 @@ export async function generateScript(
   targetSeconds: number,
   model?: string | null
 ): Promise<any> {
+  logger.info(`[Scripting] Bắt đầu viết kịch bản cho session "${id}" (Mục tiêu: ${targetSeconds}s)...`);
   const metaPath = path.join(repoRoot, "text-to-video", id, "meta.json");
   if (!fs.existsSync(metaPath)) {
+    logger.error(`[Scripting] Không tìm thấy file meta.json tại ${metaPath}`);
     throw new Error(`Phiên "${id}" không tồn tại (không tìm thấy meta.json)`);
   }
   
@@ -79,10 +82,13 @@ export async function generateScript(
   const source = sourceTextOf(meta);
   
   if (source.length < 100) {
+    logger.warn(`[Scripting] Nội dung nguồn quá ngắn (${source.length} ký tự)`);
     throw new Error("Chưa có nội dung nguồn - dán link rồi bấm bóc bài, hoặc dán thẳng đoạn văn.");
   }
   
   const prompt = scriptPrompt(meta, targetSeconds);
+  const selectedModel = model || process.env.ANTHROPIC_MODEL || "ag/gemini-3.7-flash-high";
+  logger.info(`[Scripting] Model AI được chọn: "${selectedModel}" (Anthropic Base URL: ${process.env.ANTHROPIC_BASE_URL || "Mặc định"})`);
   
   const options: any = {
     cwd: repoRoot,
@@ -90,16 +96,11 @@ export async function generateScript(
     allowedTools: [],
     settingSources: [],
     permissionMode: "auto",
-    promptCaching: true,
-    headers: {
-      "anthropic-beta": "prompt-caching-2024-07-31",
-    },
+    model: selectedModel,
   };
   
-  const selectedModel = model || process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022";
-  options.model = selectedModel;
-  
   let resultText = "";
+  const startTime = Date.now();
   
   const q = query({
     prompt,
@@ -120,20 +121,27 @@ export async function generateScript(
     timer = setTimeout(() => {
       void q.interrupt().catch(() => {});
       reject(new Error("Quá thời gian chờ AI (có thể do lỗi Rate Limit hoặc mạng)"));
-    }, 45000); // 45 seconds timeout
+    }, 180000); // 180 seconds timeout
   });
   
   try {
     await Promise.race([run, timeout]);
+    logger.info(`[Scripting] AI phản hồi thành công sau ${(Date.now() - startTime)}ms`);
+  } catch (err) {
+    logger.error(`[Scripting] AI gặp lỗi sau ${(Date.now() - startTime)}ms:`, err);
+    throw err;
   } finally {
     clearTimeout(timer);
   }
   
   const chunks = parseScriptChunks(resultText);
   if (chunks.length === 0) {
+    logger.error(`[Scripting] Không thể parse kịch bản từ kết quả AI. Result text: ${resultText}`);
     if (resultText) throw new Error("AI trả về lỗi: " + resultText);
     throw new Error("AI không trả về kịch bản đọc được - thử lại, hoặc rút gọn nội dung nguồn.");
   }
+  
+  logger.info(`[Scripting] Đã tạo thành công ${chunks.length} đoạn kịch bản cho session "${id}"`);
   
   // Cập nhật file meta.json với script mới nhất
   meta.script = chunks.map((text) => ({ text, durationSec: null }));
@@ -144,6 +152,7 @@ export async function generateScript(
   meta.updatedAt = new Date().toISOString();
   
   fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), "utf-8");
+  logger.info(`[Scripting] Đã lưu meta.json thành công cho session "${id}"`);
   
   return meta;
 }
